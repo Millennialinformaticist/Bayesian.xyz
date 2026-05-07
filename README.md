@@ -127,6 +127,10 @@ PRs and issues are welcome. If you've found a bug fix or profitable improvement,
 
 ---
 
+## Contact
+
+Tg: @soladity
+
 ## Support
 
 If this bot has been useful to you, drop a ⭐ on GitHub — it helps others find the project.
