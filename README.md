@@ -51,8 +51,8 @@ Since then I've refined the sizing logic, added leverage capping for volatile ma
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/hyperliquid-copy-bot.git
-cd hyperliquid-copy-bot
+git clone https://github.com/zkOSAI/hyperliquid-copy-trading-bot.git
+cd hyperliquid-copy-trading-bot
 ```
 
 ### 2. Install Dependencies
@@ -74,7 +74,7 @@ Open `.env` and fill in your values:
 ```env
 TRADER_ADDRESS=       # Address to copy trade
 USER_ADDRESS=         # Your Hyperliquid address (not the API address)
-USER_PRIVATE_KEY=     # Your API address private key
+USER_PRIVATE_KEY=     # Your wallet private key
 COPY_VALUE=250        # USDC amount to copy with each trade
 MAX_LEVERAGE=10       # Maximum leverage to use
 ```
@@ -97,23 +97,12 @@ The bot will connect to Hyperliquid's WebSocket, begin monitoring the target tra
 |---|---|
 | `TRADER_ADDRESS` | The Hyperliquid wallet address you want to mirror |
 | `USER_ADDRESS` | Your own Hyperliquid account address (not the API key address) |
-| `USER_PRIVATE_KEY` | Private key for your Hyperliquid API/agent wallet |
+| `USER_PRIVATE_KEY` | Private key of your wallet |
 | `COPY_VALUE` | USDC amount per copied trade (e.g. `250`) |
 | `MAX_LEVERAGE` | Hard cap on leverage (e.g. `10` = max 10x) |
 
----
 
-## How to Get Your Hyperliquid API Key
 
-1. Go to [app.hyperliquid.xyz](https://app.hyperliquid.xyz)
-2. Connect your wallet
-3. Navigate to **Settings → API**
-4. Generate a new **API Wallet** (agent wallet)
-5. Copy the agent wallet address and its private key
-6. Use the agent wallet's private key as `USER_PRIVATE_KEY`
-7. Use your **main account address** as `USER_ADDRESS`
-
-The API wallet can trade on your behalf but **cannot withdraw funds** — this is the recommended security model.
 
 ---
 
