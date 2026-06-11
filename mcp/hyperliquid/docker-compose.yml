@@ -1,0 +1,17 @@
+services:
+  hyperliquid-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hyperliquid-mcp:0.0.1-vetted
+    stdin_open: true
+    tty: false
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      HYPERLIQUID_API_URL: https://api.hyperliquid.xyz
