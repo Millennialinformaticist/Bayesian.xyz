@@ -96,3 +96,20 @@ If this bot has been useful to you, drop a ⭐ on GitHub — it helps others fin
 ---
 
 *Built for the Hyperliquid community. Trade smart. Manage risk.*
+
+---
+
+## Hyperliquid MCP (read-only market data)
+
+This repo includes a sandboxed MCP server for Cursor under `mcp/hyperliquid/`.
+It exposes read-only Hyperliquid prices — no wallet keys, no trading.
+
+```bash
+cd mcp/hyperliquid
+docker build -t hyperliquid-mcp:0.0.1-vetted .
+./scripts/price.sh BTC
+```
+
+Cursor is already configured via `.cursor/mcp.json`. Restart Cursor after
+building the Docker image, then ask the agent for Hyperliquid prices (e.g.
+`BTC`, `ETH`, `BRETT`). See [mcp/hyperliquid/README.md](mcp/hyperliquid/README.md).

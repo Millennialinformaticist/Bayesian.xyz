@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+export const getMidSchema = z
+  .object({
+    symbol: z.string({ required_error: "Symbol must be a string" }),
+  })
+  .strict();
+
 export const candleSnapshotSchema = z
   .object({
     coin: z.string().optional(),

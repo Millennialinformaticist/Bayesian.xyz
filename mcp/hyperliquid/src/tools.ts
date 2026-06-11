@@ -1,5 +1,21 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 
+export const GET_MID_TOOL: Tool = {
+  name: "get_mid",
+  description:
+    "Get the mid price for a single Hyperliquid symbol (e.g. BTC, ETH, BRETT)",
+  inputSchema: {
+    type: "object",
+    properties: {
+      symbol: {
+        type: "string",
+        description: "Hyperliquid ticker symbol",
+      },
+    },
+    required: ["symbol"],
+  },
+};
+
 export const ALL_MIDS_TOOL: Tool = {
   name: "get_all_mids",
   description: "Get mid prices for all coins on Hyperliquid",

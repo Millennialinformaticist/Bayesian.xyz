@@ -56,4 +56,8 @@ CANDLE_PARAMS='{"name":"get_candle_snapshot","arguments":{"coin":"BTC","interval
 CANDLE_RESP="$( (handshake; call_method 5 "tools/call" "$CANDLE_PARAMS") | run_mcp 2>/dev/null )"
 assert_ok "get_candle_snapshot" "$CANDLE_RESP" '"result"'
 
+echo "==> Call get_mid (BTC)"
+MID_RESP="$( (handshake; call_method 6 "tools/call" '{"name":"get_mid","arguments":{"symbol":"BTC"}}') | run_mcp 2>/dev/null )"
+assert_ok "get_mid BTC" "$MID_RESP" '"result"'
+
 echo "==> All local smoke tests passed"

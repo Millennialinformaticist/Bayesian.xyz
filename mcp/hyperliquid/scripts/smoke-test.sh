@@ -44,6 +44,7 @@ docker build -t "$IMAGE" "$ROOT_DIR"
 
 echo "==> List tools"
 LIST_RESP="$( (handshake; call_method 2 "tools/list" "{}") | run_mcp )"
+assert_ok "tools/list" "$LIST_RESP" "get_mid"
 assert_ok "tools/list" "$LIST_RESP" "get_all_mids"
 assert_ok "tools/list" "$LIST_RESP" "get_candle_snapshot"
 assert_ok "tools/list" "$LIST_RESP" "get_l2_book"
@@ -62,5 +63,17 @@ START=$((NOW - 86400000))
 CANDLE_PARAMS='{"name":"get_candle_snapshot","arguments":{"coin":"BTC","interval":"1h","startTime":'"$START"',"endTime":'"$NOW"'}}'
 CANDLE_RESP="$( (handshake; call_method 5 "tools/call" "$CANDLE_PARAMS") | run_mcp )"
 assert_ok "get_candle_snapshot" "$CANDLE_RESP" '"result"'
+
+echo "==> Call get_mid (BTC)"
+MID_RESP="$( (handshake; call_method 6 "tools/call" '{"name":"get_mid","arguments":{"symbol":"BTC"}}') | run_mcp )"
+assert_ok "get_mid BTC" "$MID_RESP" '"result"'
+
+echo "==> Call get_mid (unknown symbol)"
+MISS_RESP="$( (handshake; call_method 7 "tools/call" '{"name":"get_mid","arguments":{"symbol":"BRENT"}}') | run_mcp )"
+echo "$MISS_RESP" | grep -q 'not listed on Hyperliquid' || {
+  echo "get_mid BRENT should report missing symbol:"
+  echo "$MISS_RESP"
+  exit 1
+}
 
 echo "==> All smoke tests passed"

@@ -9,8 +9,18 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import * as hl from "@nktkas/hyperliquid";
 
-import { ALL_MIDS_TOOL, CANDLE_SNAPSHOT_TOOL, L2_BOOK_TOOL } from "./tools.js";
-import { getAllMids, getCandleSnapshot, getL2Book } from "./actions.js";
+import {
+  ALL_MIDS_TOOL,
+  CANDLE_SNAPSHOT_TOOL,
+  GET_MID_TOOL,
+  L2_BOOK_TOOL,
+} from "./tools.js";
+import {
+  getAllMids,
+  getCandleSnapshot,
+  getL2Book,
+  getMid,
+} from "./actions.js";
 
 const DEFAULT_API_URL = "https://api.hyperliquid.xyz";
 const ALLOWED_API_URLS = new Set([
@@ -66,6 +76,12 @@ async function main() {
           case "get_all_mids": {
             return await getAllMids(hyperliquidClient);
           }
+          case "get_mid": {
+            if (!args) {
+              throw new Error("No arguments provided");
+            }
+            return await getMid(hyperliquidClient, args);
+          }
           case "get_candle_snapshot": {
             if (!args) {
               throw new Error("No arguments provided");
@@ -97,7 +113,7 @@ async function main() {
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     console.error("ListToolsRequest");
     return {
-      tools: [ALL_MIDS_TOOL, CANDLE_SNAPSHOT_TOOL, L2_BOOK_TOOL],
+      tools: [GET_MID_TOOL, ALL_MIDS_TOOL, CANDLE_SNAPSHOT_TOOL, L2_BOOK_TOOL],
     };
   });
 

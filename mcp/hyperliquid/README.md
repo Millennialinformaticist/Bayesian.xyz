@@ -10,6 +10,7 @@ See [SECURITY.md](./SECURITY.md) for the full audit and threat model.
 
 | Tool | Description |
 |------|-------------|
+| `get_mid` | Mid price for a single symbol (with similar-symbol hints if missing) |
 | `get_all_mids` | Mid prices for all coins |
 | `get_candle_snapshot` | Historical candlestick data |
 | `get_l2_book` | L2 order book snapshot |
@@ -37,7 +38,17 @@ With Docker:
 ./scripts/smoke-test.sh
 ```
 
-### 3. Add to Cursor
+### 3. Query a price
+
+```bash
+./scripts/price.sh BTC
+./scripts/price.sh BRETT
+```
+
+Note: only Hyperliquid-listed symbols work. Commodities like Brent crude oil
+(`BRENT`) are not on Hyperliquid; the closest match is often `BRETT`.
+
+### 4. Add to Cursor
 
 Copy the example config into your project:
 
