@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>HL Momentum Survey</title>
+<style>
+:root { color-scheme: dark; }
+body { margin:0; font:12px/1.25 ui-sans-serif,system-ui,sans-serif; background:#0b0f14; color:#e5e7eb; }
+h1 { font-size:16px; margin:12px 14px 2px; }
+.meta { margin:0 14px 8px; color:#9ca3af; font-size:11px; }
+.legend { margin:0 14px 8px; padding:8px 12px; border-radius:6px; border:1px dashed #334155; color:#9ca3af; font-size:11px; line-height:1.45; }
+.legend b { color:#e5e7eb; }
+.legend .g { color:#4ade80; }
+.legend .r { color:#f87171; }
+.toolbar { margin:0 14px 8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.wrap { overflow:auto; max-height:calc(100vh - 210px); margin:0 10px 16px; border:1px solid #1f2937; border-radius:8px; }
+table { border-collapse:collapse; width:max-content; }
+th,td { padding:4px 8px; border-bottom:1px solid #1f2937; white-space:nowrap; }
+th { position:sticky; top:0; background:#111827; z-index:2; text-align:right; font-weight:600; color:#9ca3af; cursor:pointer; user-select:none; }
+th:nth-child(1),th:nth-child(2),td:nth-child(1),td:nth-child(2) { text-align:left; }
+th:hover { color:#e5e7eb; }
+th .arrow { margin-left:4px; opacity:.45; font-size:10px; }
+th.sorted .arrow { opacity:1; color:#60a5fa; }
+th:nth-child(1),td:nth-child(1) { position:sticky; left:0; z-index:1; background:#0b0f14; min-width:28px; }
+th:nth-child(2),td:nth-child(2) { position:sticky; left:28px; z-index:1; background:#0b0f14; min-width:56px; box-shadow:2px 0 0 #1f2937; }
+th:nth-child(1),th:nth-child(2) { z-index:3; background:#111827; }
+tr:hover td { background:#111827; }
+tr:hover td:nth-child(1),tr:hover td:nth-child(2) { background:#111827; }
+.coin { font-weight:700; letter-spacing:.02em; }
+.n,.pct,.st,.oid,.side,.score,.setup,.stdist { font-variant-numeric:tabular-nums; text-align:right; }
+.n { color:#d1d5db; }
+.oid.up { color:#22c55e; font-weight:700; }
+.oid.down { color:#ef4444; font-weight:700; }
+.oid.flat,.oid.pending { color:#4b5563; }
+.st.yes { color:#22c55e; font-weight:700; }
+.st.no { color:#ef4444; font-weight:700; }
+.st.pending { color:#4b5563; }
+.stdist.need { color:#fbbf24; font-weight:600; }
+.stdist.in { color:#22c55e; font-weight:600; }
+.stdist.pending { color:#4b5563; }
+.side.long { color:#22c55e; font-weight:800; }
+.side.short { color:#ef4444; font-weight:800; }
+.side.none,.side.pending { color:#6b7280; }
+.side.blocked { color:#f59e0b; font-weight:700; }
+.score.hot { color:#4ade80; font-weight:800; }
+.score.warm { color:#86efac; font-weight:700; }
+.score.cold { color:#9ca3af; }
+.score.shorthot { color:#f87171; font-weight:800; }
+.score.pending { color:#4b5563; }
+.setup.hp { color:#fde68a; font-weight:800; }
+.setup.ok { color:#86efac; font-weight:700; }
+.setup.shorthp { color:#fecaca; font-weight:800; }
+.setup.shortok { color:#fca5a5; font-weight:700; }
+.setup.no { color:#4b5563; }
+tr.long-setup td.coin { color:#86efac; }
+tr.short-setup td.coin { color:#fca5a5; }
+tr.hp-long td { background:linear-gradient(90deg,#052e16 0%,#0b0f14 42%)!important; font-weight:700; }
+tr.hp-long td.coin { color:#bbf7d0!important; font-weight:900!important; font-size:13px; }
+tr.hp-long { outline:2px solid #4ade80; outline-offset:-2px; box-shadow:inset 0 0 0 1px #166534; }
+tr.hp-long:hover td { background:linear-gradient(90deg,#064e3b 0%,#111827 42%)!important; }
+tr.hp-long td:nth-child(1),tr.hp-long td:nth-child(2) { background:#052e16!important; }
+tr.hp-short td { background:linear-gradient(90deg,#450a0a 0%,#0b0f14 42%)!important; font-weight:700; }
+tr.hp-short td.coin { color:#fecaca!important; font-weight:900!important; }
+tr.hp-short { outline:2px solid #f87171; outline-offset:-2px; }
+tr.hp-short td:nth-child(1),tr.hp-short td:nth-child(2) { background:#450a0a!important; }
+input,button,select { padding:5px 9px; border-radius:6px; border:1px solid #374151; background:#111827; color:#e5e7eb; }
+input { width:200px; }
+button { cursor:pointer; }
+button:hover { border-color:#60a5fa; }
+.hint { color:#6b7280; font-size:11px; }
+.status { color:#93c5fd; font-size:11px; }
+.status.err { color:#f87171; }
+.pct.pending { color:#4b5563; }
+#btc-regime { margin:0 14px 10px; padding:10px 14px; border-radius:8px; border:1px solid #334155; background:#111827; display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; font-size:13px; }
+#btc-regime .rg-label { font-weight:800; letter-spacing:.08em; font-size:14px; }
+#btc-regime .rg-detail { color:#9ca3af; font-size:11px; }
+#btc-regime.alts { border-color:#166534; background:#052e16; }
+#btc-regime.alts .rg-label { color:#4ade80; }
+#btc-regime.mixed { border-color:#854d0e; background:#1c1917; }
+#btc-regime.mixed .rg-label { color:#fbbf24; }
+#btc-regime.trad { border-color:#7f1d1d; background:#450a0a; }
+#btc-regime.trad .rg-label { color:#f87171; }
+#btc-regime.pending .rg-label { color:#93c5fd; }
+tr.section-div td { background:#0f172a!important; color:#fbbf24; font-weight:800; letter-spacing:.14em; text-align:left!important; padding:8px 10px; border-top:1px solid #334155; border-bottom:1px solid #334155; position:sticky; left:0; z-index:1; }
+tr.section-div.trad-focus td { color:#f87171; }
+tr.section-div:hover td { background:#0f172a!important; }
+
+.attn.hot { color:#fde68a; font-weight:800; }
+.attn.warm { color:#fbbf24; font-weight:700; }
+.attn.cold { color:#9ca3af; }
+.attn.pending { color:#4b5563; }
+.heat.yes { color:#fde68a; font-weight:800; }
+.heat.no { color:#4b5563; }
+.fund.pos { color:#f87171; font-weight:600; }
+.fund.neg { color:#4ade80; font-weight:600; }
+.fund.flat,.fund.pending { color:#6b7280; }
+.prem.pos { color:#f87171; }
+.prem.neg { color:#4ade80; }
+.prem.flat,.prem.pending { color:#6b7280; }
+.rvol.hot { color:#fde68a; font-weight:700; }
+.rvol.ok { color:#d1d5db; }
+.rvol.cold { color:#6b7280; }
+.rvol.pending { color:#4b5563; }
+#btn-push { border-color:#4ade80; color:#bbf7d0; }
+#btn-push.on { background:#052e16; border-color:#4ade80; }
+#btn-push.need { border-color:#fbbf24; color:#fde68a; }
+tr.jump-flash td { animation: jumpFlash 1.2s ease; }
+@keyframes jumpFlash {
+  0% { background:#14532d; }
+  100% { background:transparent; }
+}
+</style>
+</head>
+<body>
+<h1>HL Momentum Survey</h1>
+<p class="meta" id="meta">Loading… · multi-TF momentum + OI confirm + SuperTrend 4H · HP longs outlined at top</p>
+<div id="btc-regime" class="pending">
+  <span class="rg-label">ENV · …</span>
+  <span class="rg-detail">Reading BTC…</span>
+</div>
+<div class="legend">
+  <b>Score</b> = TF stack + SuperTrend + OI + RS vs BTC + <b>attention</b> − stretch.
+  <span class="g">★ HP LONG</span> pinned top. <b>Push-only:</b> all other alerts muted.
+  Notify only on score <b>jumps toward 100</b> (ladder 40 → 80 → 100) or −100 shorts. Keep this tab open.
+</div>
+<div class="toolbar">
+  <input id="q" placeholder="Filter: BTC, ETH, SOL…" oninput="filt()"/>
+  <select id="view" onchange="filt()">
+    <option value="all">All</option>
+    <option value="hp" selected>HP only</option>
+    <option value="longs">Longs</option>
+    <option value="shorts">Shorts</option>
+    <option value="setups">Any setup</option>
+  </select>
+  <button type="button" onclick="reloadAll()">Refresh now</button>
+  <button type="button" id="btn-push" onclick="enablePush()">Enable score-jump push</button>
+  <span class="status" id="status"></span>
+  <span class="hint" id="push-hint">Alerts muted · push only on 40→80→100 jumps</span>
+</div>
+<div class="wrap">
+<table id="t">
+  <thead><tr id="thead"></tr></thead>
+  <tbody id="tbody"></tbody>
+</table>
+</div>
+<script>
+const API = "https://api.hyperliquid.xyz/info";
+const STABLES = new Set(["USDC","USDT","USD","DAI","FDUSD","USDE","USD1","EUR","EURC","PYUSD"]);
+const WINDOWS = [
+  ["15m",0.25],["1H",1],["4H",4],["8H",8],["12H",12],["1D",24],
+  ["3D",72],["1W",168],["2W",336],["1M",720],["3M",2160]
+];
+const COLS = WINDOWS.map(w => w[0]);
+const HEADERS = ["#","Coin","Mid","OI $","OI Δ 15m","SuperTrend?","ST Dist%","Fund%","Prem","RVol","Heat","Attn","Side","Score","Setup","24h Ntl", ...COLS];
+const TYPES = ["num","str","num","num","num","str","num","num","num","num","num","num","num","num","num","num", ...COLS.map(() => "num")];
+/** Column indices after attention fields */
+const COL = { side:12, score:13, setup:14, dayNtl:15 };
+let trendingHeat = new Map(); // symbol -> rank 1..15 (1 = hottest)
+let medianDayNtl = 0;
+const CONCURRENCY = 3;
+const OI_STORE_KEY = "hl_momentum_oi_v1";
+const OI_DELTA_MS = 15*60*1000;
+const OI_MIN_AGE_MS = 10*60*1000;
+const OI_MAX_AGE_MS = 25*60*1000;
+const OI_POLL_MS = 2*60*1000;
+const ST_ATR = 10;
+const ST_MULT = 3;
+const MIN_OI_USD = 1_000_000;
+const HP_LONG = 70;
+const HP_SHORT = 70;
+const SETUP_MIN = 55;
+
+/** Push-only alert mode: mute everything except score-ladder jumps toward ±100 */
+const ALERTS_MUTED = true;
+const SCORE_HIST_KEY = "hl_momentum_score_hist_v1";
+const JUMP_LADDER_LONG = [40, 80, 100];   // notify when crossing each rung upward
+const JUMP_LADDER_SHORT = [-40, -80, -100];
+const JUMP_MIN_DELTA = 15;                // also fire on big jumps into ≥40 / ≤−40
+const RESCORE_MS = 5 * 60 * 1000;         // full momentum rescore so jumps can appear
+const PERFECT_LONG = 100;
+const PERFECT_SHORT = -100;
+
+let oiTimer = null;
+let rescoreTimer = null;
+let pushEnabled = false;
+let scoreHist = {}; // coin -> { score, rungs: { "40":true, ... }, ts }
+let rows = [];
+let sortCol = 13; // Score
+let sortAsc = false;
+let abortCtrl = null;
+let btcRegime = { kind:"pending", label:"ENV · …", detail:"Reading BTC…" };
+let btcRow = null;
+
+function bare(name) {
+  if (!name) return "";
+  return name.includes(":") ? name.split(":").slice(1).join(":") : name;
+}
+function isBtc(row) { return bare(row.coin).toUpperCase() === "BTC"; }
+
+function el(tag, attrs={}, text) {
+  const e = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)) {
+    if (k === "style" && typeof v === "object") Object.assign(e.style, v);
+    else if (k.startsWith("on") && typeof v === "function") e[k.toLowerCase()] = v;
+    else e.setAttribute(k, v);
+  }
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function buildHeader() {
+  const tr = document.getElementById("thead");
+  tr.innerHTML = "";
+  HEADERS.forEach((h,i) => {
+    const th = el("th", {"data-col":String(i), title:"Click to sort"}, h);
+    th.appendChild(el("span",{class:"arrow"}));
+    th.onclick = () => sortBy(i);
+    tr.appendChild(th);
+  });
+}
+
+function fmtMid(v) {
+  if (v == null || !Number.isFinite(v)) return "—";
+  return Number(v).toLocaleString("en-US",{maximumSignificantDigits:4});
+}
+function fmtN(v, d=2) {
+  if (v == null || !Number.isFinite(v)) return "—";
+  return Number(v).toLocaleString("en-US",{maximumFractionDigits:d});
+}
+function fmtCompact(v) {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const s = v < 0 ? "-" : "";
+  const a = Math.abs(v);
+  if (a >= 1e9) return s + (a/1e9).toFixed(a>=10e9?1:2) + "B";
+  if (a >= 1e6) return s + (a/1e6).toFixed(a>=10e6?1:2) + "M";
+  if (a >= 1e3) return s + (a/1e3).toFixed(a>=10e3?1:2) + "K";
+  return s + a.toFixed(2);
+}
+function fmtPct(v) {
+  if (v == null || !Number.isFinite(v)) return "—";
+  return (v>=0?"+":"") + v.toFixed(2) + "%";
+}
+function colorFor(v) {
+  if (v == null || !Number.isFinite(v)) return "#4b5563";
+  if (v > 0.05) return "#22c55e";
+  if (v < -0.05) return "#ef4444";
+  return "#a3a3a3";
+}
+
+async function apiPost(body, signal) {
+  for (let i=0;i<12;i++) {
+    let res;
+    try {
+      res = await fetch(API, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(body),
+        signal
+      });
+    } catch(e) {
+      if (e.name === "AbortError") throw e;
+      await sleep(1000 + i*500);
+      continue;
+    }
+    if (res.status === 429) {
+      const ra = Number(res.headers.get("Retry-After"));
+      await sleep(((Number.isFinite(ra)?ra:8)+i*2)*1000);
+      continue;
+    }
+    if (res.status >= 500) { await sleep(1000+i*800); continue; }
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    return res.json();
+  }
+  throw new Error("retries exhausted");
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function pctChange(now, then) {
+  if (then == null || then <= 0 || now == null || now <= 0) return null;
+  return 100*(now-then)/then;
+}
+function priceAtOrBefore(candles, targetMs) {
+  let best = null;
+  for (const c of candles) {
+    const t = Number(c.t);
+    if (t <= targetMs) best = Number(c.c);
+    else break;
+  }
+  return best;
+}
+
+function loadOiStore() {
+  try {
+    const raw = localStorage.getItem(OI_STORE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
+function saveOiStore(snaps) {
+  try { localStorage.setItem(OI_STORE_KEY, JSON.stringify(snaps)); }
+  catch(e){ console.warn("OI store save failed", e); }
+}
+function recordOiSnapshot(nowMs, list) {
+  const snaps = loadOiStore().filter(s => nowMs - Number(s.ts) <= 36*3600*1000);
+  const oi = {};
+  for (const r of list) if (Number.isFinite(r.oi)) oi[r.coin] = r.oi;
+  snaps.push({ ts: nowMs, oi });
+  saveOiStore(snaps);
+  return snaps;
+}
+function oiBaseline(snaps, coin, nowMs) {
+  const target = nowMs - OI_DELTA_MS;
+  let best=null, bestDist=Infinity, bestAge=null;
+  for (const s of snaps) {
+    const ts = Number(s.ts);
+    if (!Number.isFinite(ts) || ts >= nowMs) continue;
+    const age = nowMs - ts;
+    if (age < OI_MIN_AGE_MS || age > OI_MAX_AGE_MS) continue;
+    if (!s.oi || s.oi[coin] == null) continue;
+    const val = Number(s.oi[coin]);
+    if (!Number.isFinite(val)) continue;
+    const dist = Math.abs(ts - target);
+    if (dist < bestDist) { bestDist=dist; best=val; bestAge=age; }
+  }
+  return best==null ? null : { oi:best, ageMs:bestAge };
+}
+function oldestAgeMs(snaps, nowMs) {
+  let oldest=null;
+  for (const s of snaps) {
+    const ts=Number(s.ts);
+    if (!Number.isFinite(ts)||ts>=nowMs) continue;
+    const age=nowMs-ts;
+    if (oldest==null||age>oldest) oldest=age;
+  }
+  return oldest;
+}
+function computeOiDelta(row, snaps, nowMs) {
+  const hit = oiBaseline(snaps, row.coin, nowMs);
+  if (hit==null || !Number.isFinite(row.oi)) {
+    row.oiDelta=null; row.oiDir=null; row.oiAgeH=null; return;
+  }
+  const d = row.oi - hit.oi;
+  row.oiDelta=d; row.oiAgeH=hit.ageMs/3600000;
+  if (Math.abs(d)<1e-12) row.oiDir="flat";
+  else row.oiDir = d>0 ? "up" : "down";
+}
+function oiCacheStatus(nowMs=Date.now()) {
+  const snaps = loadOiStore();
+  const oldest = oldestAgeMs(snaps, nowMs);
+  if (oldest==null) return "OI Δ cache empty · poll 2m · need ~15m";
+  const h = oldest/3600000;
+  if (h >= 10/60) return `OI Δ ready (~${(h*60).toFixed(0)}m, ${snaps.length} snaps)`;
+  return `OI Δ building · ${(h*60).toFixed(0)}m · ~${Math.max(0,10-h*60).toFixed(0)}m left · ${snaps.length} snaps`;
+}
+
+function superTrend(candles, period=ST_ATR, mult=ST_MULT) {
+  if (!candles || candles.length < period+2) return null;
+  const hs=candles.map(c=>Number(c.h));
+  const ls=candles.map(c=>Number(c.l));
+  const cs=candles.map(c=>Number(c.c));
+  const n=candles.length;
+  const tr=new Array(n).fill(0);
+  for (let i=0;i<n;i++){
+    if(i===0) tr[i]=hs[i]-ls[i];
+    else tr[i]=Math.max(hs[i]-ls[i], Math.abs(hs[i]-cs[i-1]), Math.abs(ls[i]-cs[i-1]));
+  }
+  const atr=new Array(n).fill(NaN);
+  let sum=0; for(let i=0;i<period;i++) sum+=tr[i];
+  atr[period-1]=sum/period;
+  for(let i=period;i<n;i++) atr[i]=(atr[i-1]*(period-1)+tr[i])/period;
+  const fUb=new Array(n).fill(NaN), fLb=new Array(n).fill(NaN);
+  const st=new Array(n).fill(NaN), dir=new Array(n).fill(0);
+  for(let i=period-1;i<n;i++){
+    const mid=(hs[i]+ls[i])/2;
+    const bUb=mid+mult*atr[i], bLb=mid-mult*atr[i];
+    if(i===period-1){ fUb[i]=bUb; fLb[i]=bLb; st[i]=bLb; dir[i]=1; continue; }
+    fUb[i]=(bUb<fUb[i-1]||cs[i-1]>fUb[i-1])?bUb:fUb[i-1];
+    fLb[i]=(bLb>fLb[i-1]||cs[i-1]<fLb[i-1])?bLb:fLb[i-1];
+    if(dir[i-1]===1){
+      if(cs[i]<fLb[i]){ dir[i]=-1; st[i]=fUb[i]; }
+      else { dir[i]=1; st[i]=fLb[i]; }
+    } else {
+      if(cs[i]>fUb[i]){ dir[i]=1; st[i]=fLb[i]; }
+      else { dir[i]=-1; st[i]=fUb[i]; }
+    }
+  }
+  const last=n-1;
+  if(!Number.isFinite(st[last])||!dir[last]) return null;
+  const bull=dir[last]===1;
+  return { bullish:bull, flipPx: bull?fLb[last]:fUb[last], atr:atr[last] };
+}
+
+async function fetchCandles(coin, interval, startMs, endMs, signal) {
+  const data = await apiPost({
+    type:"candleSnapshot",
+    req:{ coin, interval, startTime:startMs, endTime:endMs }
+  }, signal);
+  return (data||[]).slice().sort((a,b)=>Number(a.t)-Number(b.t));
+}
+function emaLast(vals, span) {
+  if(!vals||!vals.length) return null;
+  const a=2/(span+1);
+  let e=vals[0];
+  for(let i=1;i<vals.length;i++) e=a*vals[i]+(1-a)*e;
+  return e;
+}
+
+async function surveyCoin(row, nowMs, signal) {
+  const s15 = nowMs - 6*3600*1000;
+  const s1h = nowMs - 48*3600*1000;
+  const s4h = nowMs - (isBtc(row)?45:16)*24*3600*1000;
+  const s1d = nowMs - 100*24*3600*1000;
+  const c15 = await fetchCandles(row.coin,"15m",s15,nowMs,signal); await sleep(180);
+  const c1h = await fetchCandles(row.coin,"1h",s1h,nowMs,signal); await sleep(180);
+  const c4h = await fetchCandles(row.coin,"4h",s4h,nowMs,signal); await sleep(180);
+  const c1d = await fetchCandles(row.coin,"1d",s1d,nowMs,signal);
+
+  for (const [label, hours] of WINDOWS) {
+    const target = nowMs - hours*3600*1000;
+    let then;
+    if (hours<=1) then = priceAtOrBefore(c15,target) ?? priceAtOrBefore(c1h,target);
+    else if (hours<=12) then = priceAtOrBefore(c1h,target) ?? priceAtOrBefore(c4h,target);
+    else if (hours<=24*14) then = priceAtOrBefore(c4h,target) ?? priceAtOrBefore(c1d,target);
+    else then = priceAtOrBefore(c1d,target) ?? priceAtOrBefore(c4h,target);
+    row[label] = pctChange(row.mid, then);
+  }
+
+  const st = superTrend(c4h);
+  if (!st) { row.stYes=null; row.stFlip=null; row.stDist=null; }
+  else {
+    row.stYes = st.bullish;
+    row.stFlip = st.flipPx;
+    const px = Number.isFinite(row.mid)&&row.mid>0 ? row.mid : Number(c4h[c4h.length-1]?.c);
+    if (st.bullish) row.stDist = 0;
+    else if (Number.isFinite(px)&&px>0&&Number.isFinite(st.flipPx)) row.stDist = 100*(st.flipPx-px)/px;
+    else row.stDist = null;
+  }
+
+  if (isBtc(row) && c4h.length) {
+    const closes = c4h.map(c=>Number(c.c)).filter(Number.isFinite);
+    const px = Number.isFinite(row.mid)&&row.mid>0 ? row.mid : closes[closes.length-1];
+    row.btcStruct = {
+      px,
+      ema200: closes.length>=200 ? emaLast(closes,200) : null,
+      ema30: closes.length>=30 ? emaLast(closes,30) : null,
+      ema90: closes.length>=90 ? emaLast(closes,90) : null,
+      week: row["1W"]
+    };
+  }
+}
+
+function setStatus(msg, err=false) {
+  const s = document.getElementById("status");
+  s.textContent = msg;
+  s.className = "status" + (err?" err":"");
+}
+
+function signPct(v) {
+  if (!Number.isFinite(v)) return 0;
+  if (v > 0.05) return 1;
+  if (v < -0.05) return -1;
+  return 0;
+}
+
+/** Momentum conviction −100…+100 */
+
+async function fetchTrendingHeat(signal) {
+  trendingHeat = new Map();
+  try {
+    const res = await fetch("https://api.coingecko.com/api/v3/search/trending", { signal });
+    if (!res.ok) return;
+    const data = await res.json();
+    const coins = data.coins || [];
+    coins.forEach((c, i) => {
+      const sym = String(c.item?.symbol || "").toUpperCase();
+      if (sym) trendingHeat.set(sym, i + 1); // 1 = hottest
+    });
+  } catch (e) {
+    if (e.name !== "AbortError") console.warn("CG trending failed", e);
+  }
+}
+
+function applyAttentionFields() {
+  const vols = rows.map(r => r.dayNtl).filter(Number.isFinite).sort((a,b)=>a-b);
+  medianDayNtl = vols.length ? vols[Math.floor(vols.length/2)] : 0;
+  for (const r of rows) {
+    if (r.section === "divider") continue;
+    r.relVol = (Number.isFinite(r.dayNtl) && medianDayNtl > 0) ? r.dayNtl / medianDayNtl : null;
+    const sym = bare(r.display || r.coin).toUpperCase();
+    r.heatRank = trendingHeat.has(sym) ? trendingHeat.get(sym) : null;
+  }
+}
+
+/** Attention (−20…+20): where mindshare / crowded positioning is pointing. */
+function attentionScore(row) {
+  let a = 0;
+  const bits = [];
+  // Funding: positive = longs pay = crowded long (boost shorts / haircut longs)
+  if (Number.isFinite(row.funding)) {
+    const fBps = row.funding * 10000; // per-hour-ish HL funding in decimal
+    if (fBps > 1.5) { a -= 6; bits.push("fund crowded↑"); }
+    else if (fBps > 0.5) { a -= 3; bits.push("fund↑"); }
+    else if (fBps < -1.5) { a += 6; bits.push("fund crowded↓"); }
+    else if (fBps < -0.5) { a += 3; bits.push("fund↓"); }
+  }
+  // Premium vs oracle: rich = chase risk; cheap = neglected
+  if (Number.isFinite(row.premium)) {
+    const pBps = row.premium * 10000;
+    if (pBps > 8) { a -= 4; bits.push("rich prem"); }
+    else if (pBps < -8) { a += 4; bits.push("cheap prem"); }
+  }
+  // Relative volume vs median — attention magnet
+  if (Number.isFinite(row.relVol)) {
+    if (row.relVol >= 3) { a += 8; bits.push("RVol×3"); }
+    else if (row.relVol >= 1.5) { a += 5; bits.push("RVol↑"); }
+    else if (row.relVol < 0.4) { a -= 4; bits.push("quiet"); }
+  }
+  // CoinGecko search heat (Google-search-like retail attention proxy)
+  if (row.heatRank != null) {
+    const boost = Math.max(2, 12 - (row.heatRank - 1)); // rank1=+12 … rank11=+2
+    a += boost;
+    bits.push("CG#" + row.heatRank);
+  }
+  a = Math.max(-20, Math.min(20, Math.round(a)));
+  row.attn = a;
+  return { a, bits };
+}
+
+function fundCell(row) {
+  if (!Number.isFinite(row.funding)) return {cls:"fund pending",text:"—",v:""};
+  const pct = row.funding * 100; // show as %
+  const cls = pct>0.01?"fund pos":pct<-0.01?"fund neg":"fund flat";
+  return {cls, text:(pct>=0?"+":"")+pct.toFixed(4)+"%", v:pct};
+}
+function premCell(row) {
+  if (!Number.isFinite(row.premium)) return {cls:"prem pending",text:"—",v:""};
+  const bps = row.premium * 10000;
+  const cls = bps>2?"prem pos":bps<-2?"prem neg":"prem flat";
+  return {cls, text:(bps>=0?"+":"")+bps.toFixed(1), v:bps};
+}
+function rvolCell(row) {
+  if (!Number.isFinite(row.relVol)) return {cls:"rvol pending",text:"—",v:""};
+  const v=row.relVol;
+  const cls = v>=2?"rvol hot":v>=1?"rvol ok":"rvol cold";
+  return {cls, text:v.toFixed(2)+"×", v};
+}
+function heatCell(row) {
+  if (row.heatRank == null) return {cls:"heat no",text:"—",v:""};
+  return {cls:"heat yes", text:"#"+row.heatRank, v: 16-row.heatRank};
+}
+function attnCell(row) {
+  if (row.attn==null||!Number.isFinite(row.attn)) return {cls:"attn pending",text:"…",v:""};
+  const a=row.attn;
+  const cls = a>=8?"attn hot":a>=3?"attn warm":"attn cold";
+  return {cls, text:(a>0?"+":"")+String(a), v:a};
+}
+
+
+
+/* ===== Score-jump push (only alert channel) ===== */
+function loadScoreHist() {
+  try {
+    const raw = localStorage.getItem(SCORE_HIST_KEY);
+    scoreHist = raw ? (JSON.parse(raw) || {}) : {};
+  } catch { scoreHist = {}; }
+}
+function saveScoreHist() {
+  try { localStorage.setItem(SCORE_HIST_KEY, JSON.stringify(scoreHist)); }
+  catch (e) { console.warn("score hist save", e); }
+}
+
+function pushStatusUI() {
+  const btn = document.getElementById("btn-push");
+  const hint = document.getElementById("push-hint");
+  if (!btn) return;
+  const perm = (typeof Notification !== "undefined") ? Notification.permission : "denied";
+  if (perm === "granted" && pushEnabled) {
+    btn.textContent = "Push ON · jumps only";
+    btn.className = "on";
+    if (hint) hint.textContent = "Muted all other alerts · notify on 40→80→100 (and −40→−80→−100)";
+  } else if (perm === "denied") {
+    btn.textContent = "Push blocked — allow in browser";
+    btn.className = "need";
+    if (hint) hint.textContent = "Browser blocked notifications — enable for this file/site";
+  } else {
+    btn.textContent = "Enable score-jump push";
+    btn.className = "need";
+    if (hint) hint.textContent = "Alerts muted · click to allow push on perfect-score climbs";
+  }
+}
+
+async function enablePush() {
+  if (typeof Notification === "undefined") {
+    setStatus("Notifications unsupported in this browser", true);
+    return;
+  }
+  let perm = Notification.permission;
+  if (perm !== "granted") {
+    perm = await Notification.requestPermission();
+  }
+  pushEnabled = (perm === "granted");
+  pushStatusUI();
+  if (pushEnabled) {
+    setStatus("Push armed · only 40→80→100 (and short −100 ladder)");
+    // one quiet test so OS permission is confirmed
+    try {
+      new Notification("HL Momentum · push armed", {
+        body: "Other alerts muted. You'll only get pinged on score jumps toward ±100.",
+        silent: true,
+        tag: "hl-push-arm",
+      });
+    } catch {}
+  } else {
+    setStatus("Push not granted — can't alert on score jumps", true);
+  }
+}
+
+function fireJumpPush({ coin, from, to, rung, side }) {
+  if (ALERTS_MUTED === false) { /* reserved */ }
+  // Absolute mute of anything that isn't this path — no beeps, no extra toasts
+  if (!pushEnabled || typeof Notification === "undefined" || Notification.permission !== "granted") {
+    console.info("[jump muted/no-perm]", coin, from, "→", to, rung);
+    setStatus(`JUMP ${coin} ${from}→${to} (enable push to get notified)`);
+    return;
+  }
+  const perfect = (to >= PERFECT_LONG) || (to <= PERFECT_SHORT);
+  const title = perfect
+    ? `🚨 PERFECT ${to} · ${coin}`
+    : `⚡ Score jump · ${coin} → ${to}`;
+  const body = side === "short"
+    ? `Short ladder: ${from} → ${to} (rung ${rung}). Attention now.`
+    : `Long ladder: ${from} → ${to} (crossed ${rung}). Attention now.`;
+  try {
+    const n = new Notification(title, {
+      body,
+      tag: `hl-jump-${coin}-${rung}`,
+      renotify: true,
+      requireInteraction: perfect, // stick until dismissed on ±100
+      silent: false,
+    });
+    n.onclick = () => { try { window.focus(); } catch {} n.close(); };
+  } catch (e) {
+    console.warn("Notification failed", e);
+  }
+  setStatus(`${perfect ? "PERFECT" : "JUMP"} ${coin} ${from}→${to}`);
+  // visual flash on row if visible
+  const row = rows.find(r => r.coin === coin || bare(r.coin) === coin || r.display === coin);
+  if (row?.tr) {
+    row.tr.classList.remove("jump-flash");
+    void row.tr.offsetWidth;
+    row.tr.classList.add("jump-flash");
+  }
+}
+
+/**
+ * Compare new score vs last check.
+ * Fire only when climbing the 40→80→100 ladder (or descending −40→−80→−100),
+ * or a large delta into that zone. First observation seeds history silently.
+ */
+function checkScoreJump(row) {
+  if (!row || row.section === "divider") return;
+  if (row.score == null || !Number.isFinite(row.score)) return;
+  const key = row.coin;
+  const now = row.score;
+  const prevEntry = scoreHist[key];
+  if (!prevEntry || !Number.isFinite(prevEntry.score)) {
+    scoreHist[key] = { score: now, rungs: {}, ts: Date.now() };
+    saveScoreHist();
+    return; // seed — no alert on first sight
+  }
+  const prev = prevEntry.score;
+  const rungs = prevEntry.rungs || {};
+  let fired = false;
+
+  // Long climb toward 100
+  if (now > prev) {
+    for (const rung of JUMP_LADDER_LONG) {
+      if (prev < rung && now >= rung && !rungs["L"+rung]) {
+        rungs["L"+rung] = true;
+        fireJumpPush({ coin: row.display || bare(row.coin) || key, from: prev, to: now, rung, side: "long" });
+        fired = true;
+      }
+    }
+    // big jump into high zone even if rung already noted this session? only new rungs.
+    if (!fired && (now - prev) >= JUMP_MIN_DELTA && now >= 40 && prev < 40) {
+      fireJumpPush({ coin: row.display || bare(row.coin) || key, from: prev, to: now, rung: "Δinto40+", side: "long" });
+      fired = true;
+    }
+  }
+
+  // Short climb toward −100 (more negative)
+  if (now < prev) {
+    for (const rung of JUMP_LADDER_SHORT) {
+      if (prev > rung && now <= rung && !rungs["S"+rung]) {
+        rungs["S"+rung] = true;
+        fireJumpPush({ coin: row.display || bare(row.coin) || key, from: prev, to: now, rung, side: "short" });
+        fired = true;
+      }
+    }
+    if (!fired && (prev - now) >= JUMP_MIN_DELTA && now <= -40 && prev > -40) {
+      fireJumpPush({ coin: row.display || bare(row.coin) || key, from: prev, to: now, rung: "Δinto-40", side: "short" });
+      fired = true;
+    }
+  }
+
+  // Reset rung flags if score falls back below a rung (so re-climb can alert again)
+  for (const rung of JUMP_LADDER_LONG) {
+    if (now < rung - 5) delete rungs["L"+rung];
+  }
+  for (const rung of JUMP_LADDER_SHORT) {
+    if (now > rung + 5) delete rungs["S"+rung];
+  }
+
+  scoreHist[key] = { score: now, rungs, ts: Date.now() };
+  saveScoreHist();
+}
+
+function checkAllScoreJumps() {
+  for (const r of rows) {
+    if (r.section === "divider") continue;
+    checkScoreJump(r);
+  }
+}
+
+async function rescorePass() {
+  if (!rows.length) return;
+  const ctrl = new AbortController();
+  const signal = ctrl.signal;
+  try {
+    setStatus("Rescore pass (jump watch)…");
+    await fetchTrendingHeat(signal);
+    applyAttentionFields();
+    const nowMs = Date.now();
+    await mapPool(rows, CONCURRENCY, async (row) => {
+      if (row.section === "divider") return;
+      await surveyCoin(row, nowMs, signal);
+      paintPcts(row);
+    }, signal);
+    updateRegime();
+    checkAllScoreJumps();
+    const hot = rows.filter(r => Number.isFinite(r.score) && r.score >= 80).length;
+    const perfect = rows.filter(r => r.score >= PERFECT_LONG || r.score <= PERFECT_SHORT).length;
+    setStatus(`Jump watch · ${rows.length} mkts · ${hot} ≥80 · ${perfect} perfect · push ${pushEnabled?"ON":"OFF"}`);
+  } catch (e) {
+    if (e.name !== "AbortError") console.warn("rescorePass", e);
+  }
+}
+
+function startJumpWatcher() {
+  loadScoreHist();
+  pushEnabled = (typeof Notification !== "undefined" && Notification.permission === "granted");
+  pushStatusUI();
+  if (rescoreTimer) clearInterval(rescoreTimer);
+  rescoreTimer = setInterval(rescorePass, RESCORE_MS);
+}
+
+
+function scoreRow(row) {
+  if (row.stYes == null || row["4H"] == null || !Number.isFinite(row["4H"])) {
+    row.score=null; row.side=null; row.setup=null; row.hp=false; row.why=[];
+    return;
+  }
+  let score=0;
+  const why=[];
+  const tfs=[["15m",6],["1H",10],["4H",18],["1D",14],["1W",10]];
+  let bull=0, bear=0;
+  for (const [tf,w] of tfs) {
+    const s=signPct(row[tf]);
+    if (s===0) continue;
+    if (s>0){ bull+=w; score+=w; } else { bear+=w; score-=w; }
+  }
+  if (bull>=40) why.push("TF↑");
+  if (bear>=40) why.push("TF↓");
+
+  if (row.stYes) { score+=18; why.push("ST↑"); }
+  else { score-=18; why.push("ST↓"); }
+
+  const h4=row["4H"];
+  if (row.oiDir==="up") {
+    if (h4>0){ score+=14; why.push("OI↑+px↑"); }
+    else if (h4<0){ score-=8; why.push("OI↑ dump"); }
+  } else if (row.oiDir==="down") {
+    if (h4<0){ score-=14; why.push("OI↓+px↓"); }
+    else if (h4>0){ score-=6; why.push("OI↓ rally"); }
+  }
+
+  if (!isBtc(row) && btcRow && Number.isFinite(btcRow["4H"]) && Number.isFinite(h4)) {
+    const rs4 = h4 - btcRow["4H"];
+    const rs1 = (Number.isFinite(row["1D"])&&Number.isFinite(btcRow["1D"])) ? row["1D"]-btcRow["1D"] : 0;
+    if (rs4>1.5){ score+=10; why.push("RS+"); }
+    else if (rs4<-1.5){ score-=10; why.push("RS−"); }
+    if (rs1>3) score+=6; else if (rs1<-3) score-=6;
+  }
+
+  if (Number.isFinite(h4)) {
+    if (h4>12){ score-=Math.min(16,(h4-12)*0.8); why.push("stretched"); }
+    if (h4<-12){ score+=Math.min(16,(-h4-12)*0.8); why.push("oversold"); }
+  }
+  const h1d=row["1D"];
+  if (Number.isFinite(h1d)) {
+    if (h1d>25) score-=Math.min(12,(h1d-25)*0.35);
+    if (h1d<-25) score+=Math.min(12,(-h1d-25)*0.35);
+  }
+
+  if (!row.stYes && Number.isFinite(row.stDist) && row.stDist>0 && row.stDist<2) {
+    score+=4; why.push("near flip");
+  }
+  if (row.stYes && Number.isFinite(h4) && h4>0 && h4<4) {
+    score+=5; why.push("ST shallow");
+  }
+
+  if (Number.isFinite(row.dayNtl)) {
+    if (row.dayNtl>=50e6) score += (score>=0?4:-4);
+    else if (row.dayNtl<5e6) score *= 0.85;
+  }
+
+  // Attention: separates peers with similar TA by mindshare / crowding
+  const att = attentionScore(row);
+  if (att.a) {
+    // Align attention with directional bias: heat + cheap funding helps longs;
+    // crowded funding into heat without ST is fade fuel (already in attn sign).
+    score += att.a;
+    why.push(...att.bits);
+  }
+
+  let blocked=false;
+  if (!isBtc(row) && row.section!=="tradfi" && btcRegime.kind==="trad") {
+    if (score>0){ score=Math.min(score,25); blocked=true; why.push("BTC↓ gate"); }
+  }
+  if (row.section==="tradfi" && btcRegime.kind==="trad" && score>0) score=Math.min(score,20);
+
+  score = Math.max(-100, Math.min(100, Math.round(score)));
+  row.score=score; row.why=why;
+
+  if (blocked && score>0) { row.side="BTC↓"; row.setup="—"; row.hp=false; }
+  else if (score>=HP_LONG && row.stYes && row.oiDir==="up" && h4>0) {
+    row.side="LONG"; row.setup="HP LONG"; row.hp=true;
+  } else if (score<=-HP_SHORT && !row.stYes && h4<0 && (row.oiDir==="down"||row.oiDir==="up")) {
+    row.side="SHORT"; row.setup="HP SHORT"; row.hp=true;
+  } else if (score>=SETUP_MIN && row.stYes && h4>0) {
+    row.side="LONG"; row.setup="LONG"; row.hp=false;
+  } else if (score<=-SETUP_MIN && !row.stYes && h4<0) {
+    row.side="SHORT"; row.setup="SHORT"; row.hp=false;
+  } else {
+    row.side="—"; row.setup="—"; row.hp=false;
+  }
+}
+
+function sideCell(row) {
+  if (row.side==="LONG") return {cls:"side long",text:"LONG",v:3};
+  if (row.side==="SHORT") return {cls:"side short",text:"SHORT",v:2};
+  if (row.side==="BTC↓") return {cls:"side blocked",text:"BTC↓",v:1};
+  if (row.side==="—") return {cls:"side none",text:"—",v:0};
+  return {cls:"side pending",text:"…",v:""};
+}
+function scoreCell(row) {
+  if (row.score==null||!Number.isFinite(row.score)) return {cls:"score pending",text:"…",v:""};
+  const s=row.score;
+  let cls="score cold";
+  if (s>=HP_LONG) cls="score hot";
+  else if (s>=SETUP_MIN) cls="score warm";
+  else if (s<=-HP_SHORT) cls="score shorthot";
+  return {cls, text:(s>0?"+":"")+String(s), v:s};
+}
+function setupCell(row) {
+  if (!row.setup||row.setup==="—") return {cls:"setup no",text:"—",v:0};
+  if (row.setup==="HP LONG") return {cls:"setup hp",text:"★ HP LONG",v:4};
+  if (row.setup==="HP SHORT") return {cls:"setup shorthp",text:"★ HP SHORT",v:3};
+  if (row.setup==="LONG") return {cls:"setup ok",text:"LONG",v:2};
+  if (row.setup==="SHORT") return {cls:"setup shortok",text:"SHORT",v:1};
+  return {cls:"setup no",text:row.setup,v:0};
+}
+function whyTitle(row) {
+  return `Score ${row.score??"?"} · ${(row.why||[]).join(" · ")||"pending"}`;
+}
+
+function classifyBtc(btc) {
+  if (!btc || btc.stYes==null || btc["4H"]==null || !Number.isFinite(btc["4H"])) {
+    return { kind:"pending", label:"ENV · …", detail:"Reading BTC…" };
+  }
+  const h4=btc["4H"], h1=btc["1H"], st=btc.stYes;
+  const dumping = h4<-0.35 || (!st && Number.isFinite(h1) && h1<-0.2);
+  const rising = st && h4>=0;
+  const s=btc.btcStruct||{};
+  let sb=0, sn=0;
+  if (Number.isFinite(s.px)&&Number.isFinite(s.ema200)){ sn++; if(s.px>=s.ema200) sb++; }
+  if (Number.isFinite(s.ema30)&&Number.isFinite(s.ema90)){ sn++; if(s.ema30>s.ema90) sb++; }
+  if (Number.isFinite(s.week)){ sn++; if(s.week>0) sb++; }
+  const firm = sn>0 && sb>=2;
+  const broken = sn>0 && (sn-sb)>=2;
+  if (dumping && broken) return { kind:"trad", label:"ENV · TRAD FOCUS", detail:"BTC dumping + weak structure — alts gated; lean SHORT TRADFI" };
+  if (dumping) return { kind:"mixed", label:"ENV · MIXED — alts ok", detail: firm ? "BTC soft ST, structure fine — alts allowed" : "BTC soft — alts ok, selective" };
+  if (rising || firm) return { kind:"alts", label:"ENV · ALTS OK", detail: rising ? "BTC supportive — alt longs favored" : "BTC not dumping — alt longs ok" };
+  return { kind:"mixed", label:"ENV · MIXED — alts ok", detail:"Chop — prefer clean HP setups" };
+}
+
+function paintRegime() {
+  const elr=document.getElementById("btc-regime");
+  if (!elr) return;
+  elr.className = btcRegime.kind||"pending";
+  elr.querySelector(".rg-label").textContent = btcRegime.label;
+  elr.querySelector(".rg-detail").textContent = btcRegime.detail;
+  for (const tr of document.querySelectorAll("tr.section-div")) {
+    tr.classList.toggle("trad-focus", btcRegime.kind==="trad");
+    const td=tr.querySelector("td");
+    if (td && td.dataset.base==null) td.dataset.base=td.textContent;
+    if (td) td.textContent = btcRegime.kind==="trad" ? "TRADFI  ·  SHORT focus" : (td.dataset.base||"TRADFI");
+  }
+}
+
+function applyClasses(row) {
+  if (!row.tr) return;
+  row.tr.classList.toggle("long-setup", row.side==="LONG");
+  row.tr.classList.toggle("short-setup", row.side==="SHORT");
+  row.tr.classList.toggle("hp-long", !!(row.hp && row.side==="LONG"));
+  row.tr.classList.toggle("hp-short", !!(row.hp && row.side==="SHORT"));
+}
+
+function refreshScoreUI(row) {
+  scoreRow(row);
+  if (!row.tr) return;
+  const map=[[COL.side,sideCell],[COL.score,scoreCell],[COL.setup,setupCell],
+    [7,fundCell],[8,premCell],[9,rvolCell],[10,heatCell],[11,attnCell]];
+  for (const [i,fn] of map) {
+    const td=row.tr.children[i];
+    if (!td) continue;
+    const c=fn(row);
+    td.className=c.cls; td.textContent=c.text;
+    td.setAttribute("data-v", c.v===""||c.v==null?"":String(c.v));
+    td.title=whyTitle(row);
+  }
+  applyClasses(row);
+}
+
+function refreshAllScores() {
+  btcRow = rows.find(r => isBtc(r) && r.section!=="divider") || null;
+  for (const r of rows) if (r.section!=="divider") refreshScoreUI(r);
+  checkAllScoreJumps();
+}
+
+function updateRegime() {
+  const btc = rows.find(r => isBtc(r) && r.section!=="divider");
+  btcRegime = classifyBtc(btc);
+  paintRegime();
+  refreshAllScores();
+}
+
+function oiUsd(row) {
+  if (!Number.isFinite(row.oi)||!Number.isFinite(row.mid)) return null;
+  return row.oi*row.mid;
+}
+function oiDeltaCell(row) {
+  if (row.oiDir==="up") return {cls:"oid up",text:"↑",v:row.oiDelta};
+  if (row.oiDir==="down") return {cls:"oid down",text:"↓",v:row.oiDelta};
+  if (row.oiDir==="flat") return {cls:"oid flat",text:"→",v:0};
+  return {cls:"oid pending",text:"—",v:""};
+}
+function stCell(row) {
+  if (row.stYes===true) return {cls:"st yes",text:"Yes",v:"Yes"};
+  if (row.stYes===false) return {cls:"st no",text:"No",v:"No"};
+  return {cls:"st pending",text:"…",v:""};
+}
+function stDistCell(row) {
+  if (row.stDist==null||!Number.isFinite(row.stDist)) return {cls:"stdist pending",text:"…",v:""};
+  if (row.stYes) return {cls:"stdist in",text:"in",v:0};
+  return {cls:"stdist need",text:"+"+row.stDist.toFixed(2)+"%",v:row.stDist};
+}
+
+function makeDivider() {
+  const tr=el("tr",{class:"section-div","data-section":"divider"});
+  tr.appendChild(el("td",{colspan:String(HEADERS.length)},"TRADFI"));
+  return tr;
+}
+
+function appendRow(tb, r, idx) {
+  const tr=document.createElement("tr");
+  tr.dataset.section = r.section||"crypto";
+  scoreRow(r);
+  const oid=oiDeltaCell(r), stc=stCell(r), sdc=stDistCell(r);
+  const side=sideCell(r), sc=scoreCell(r), su=setupCell(r);
+  const oi$=oiUsd(r);
+  const fc=fundCell(r), pc=premCell(r), rc=rvolCell(r), hc=heatCell(r), ac=attnCell(r);
+  const cells=[
+    ["n", String(idx), idx],
+    ["coin", r.display||r.coin, r.display||r.coin],
+    ["n", fmtMid(r.mid), r.mid],
+    ["n", fmtCompact(oi$), oi$],
+    [oid.cls, oid.text, oid.v],
+    [stc.cls, stc.text, stc.v],
+    [sdc.cls, sdc.text, sdc.v],
+    [fc.cls, fc.text, fc.v],
+    [pc.cls, pc.text, pc.v],
+    [rc.cls, rc.text, rc.v],
+    [hc.cls, hc.text, hc.v],
+    [ac.cls, ac.text, ac.v],
+    [side.cls, side.text, side.v],
+    [sc.cls, sc.text, sc.v],
+    [su.cls, su.text, su.v],
+    ["n", fmtCompact(r.dayNtl), r.dayNtl],
+  ];
+  for (const [cls,text,v] of cells) {
+    tr.appendChild(el("td",{class:cls,"data-v":v==null||v===""?"":String(v)}, text));
+  }
+  if (tr.children[3]&&oi$!=null) tr.children[3].title=`OI ≈ ${fmtN(oi$,0)}`;
+  if (tr.children[6]&&Number.isFinite(r.stFlip)) {
+    tr.children[6].title = r.stYes ? "In 4H SuperTrend" : `Need close ~${fmtN(r.stFlip,4)} to flip`;
+  }
+  if (tr.children[COL.side]) tr.children[COL.side].title=whyTitle(r);
+  if (tr.children[COL.score]) tr.children[COL.score].title=whyTitle(r);
+  for (const c of COLS) {
+    const td=el("td",{class:"pct pending","data-v":""},"…");
+    td.dataset.col=c;
+    tr.appendChild(td);
+  }
+  r.tr=tr;
+  applyClasses(r);
+  tb.appendChild(tr);
+}
+
+function renderSkeleton() {
+  const tb=document.getElementById("tbody");
+  tb.innerHTML="";
+  const crypto=rows.filter(r=>r.section!=="tradfi");
+  const tradfi=rows.filter(r=>r.section==="tradfi");
+  let i=0;
+  crypto.forEach(r=>appendRow(tb,r,++i));
+  if (tradfi.length){ tb.appendChild(makeDivider()); tradfi.forEach(r=>appendRow(tb,r,++i)); }
+  filt(); markSort(); renumber();
+}
+
+function paintPcts(row) {
+  if (!row.tr) return;
+  for (const c of COLS) {
+    const td=row.tr.querySelector(`td[data-col="${c}"]`);
+    if (!td) continue;
+    const v=row[c];
+    td.className="pct";
+    td.style.color=colorFor(v);
+    td.style.fontWeight="600";
+    td.textContent=fmtPct(v);
+    td.setAttribute("data-v", v==null?"":String(v));
+  }
+  const stTd=row.tr.children[5];
+  if (stTd){ const c=stCell(row); stTd.className=c.cls; stTd.textContent=c.text; stTd.setAttribute("data-v",c.v||""); }
+  const sdTd=row.tr.children[6];
+  if (sdTd){
+    const c=stDistCell(row); sdTd.className=c.cls; sdTd.textContent=c.text;
+    sdTd.setAttribute("data-v", c.v===""||c.v==null?"":String(c.v));
+  }
+  if (isBtc(row)) { btcRow=row; btcRegime=classifyBtc(row); paintRegime(); }
+  refreshScoreUI(row);
+  checkScoreJump(row);
+}
+
+function paintOi(row) {
+  if (!row.tr) return;
+  const td=row.tr.children[4];
+  if (!td) return;
+  const c=oiDeltaCell(row);
+  td.className=c.cls; td.textContent=c.text;
+  td.setAttribute("data-v", c.v===""||c.v==null?"":String(c.v));
+  td.title = row.oiAgeH!=null ? `OI vs ~${(row.oiAgeH*60).toFixed(0)}m ago` : "Need ~15m OI history";
+  if (row["4H"]!=null || row.stYes!=null) refreshScoreUI(row);
+}
+
+function viewMatch(tr) {
+  const view=document.getElementById("view")?.value||"all";
+  if (view==="all") return true;
+  const setup=(tr.children[COL.setup]?.textContent||"").toUpperCase();
+  const side=(tr.children[COL.side]?.textContent||"").toUpperCase();
+  if (view==="hp") return setup.includes("HP");
+  if (view==="longs") return side==="LONG";
+  if (view==="shorts") return side==="SHORT";
+  if (view==="setups") return side==="LONG"||side==="SHORT";
+  return true;
+}
+
+function filt() {
+  const raw=document.getElementById("q").value.trim().toUpperCase();
+  const parts=raw.replaceAll(","," ").split(/\s+/).filter(Boolean);
+  let tradVis=0;
+  for (const tr of document.querySelectorAll("#t tbody tr")) {
+    if (tr.dataset.section==="divider") continue;
+    const coin=(tr.children[1]?.textContent||"").toUpperCase();
+    const qOk=!parts.length||parts.some(p=>coin===p||coin.includes(p));
+    const show=qOk&&viewMatch(tr);
+    tr.style.display=show?"":"none";
+    if (show&&tr.dataset.section==="tradfi") tradVis++;
+  }
+  const div=document.querySelector('#t tbody tr[data-section="divider"]');
+  if (div) div.style.display=tradVis?"":"none";
+  renumber();
+}
+
+function renumber() {
+  let n=0;
+  for (const tr of document.querySelectorAll("#t tbody tr")) {
+    if (tr.style.display==="none"||tr.dataset.section==="divider") continue;
+    n++;
+    if (tr.children[0]){ tr.children[0].textContent=String(n); tr.children[0].setAttribute("data-v",String(n)); }
+  }
+}
+
+function ths(){ return [...document.querySelectorAll("#t thead th")]; }
+function cellVal(td, type) {
+  const raw=td.getAttribute("data-v");
+  if (raw===""||raw==null) return type==="num"?Number.NEGATIVE_INFINITY:"";
+  if (type==="num"){ const n=Number(raw); return Number.isFinite(n)?n:Number.NEGATIVE_INFINITY; }
+  return String(raw).toUpperCase();
+}
+function conviction(tr) {
+  const setup=tr.children[COL.setup]?.textContent||"";
+  const score=Number(tr.children[COL.score]?.getAttribute("data-v"));
+  const s=Number.isFinite(score)?score:-999;
+  if (setup.includes("HP LONG")) return 1000+s;
+  if (setup.includes("LONG")&&!setup.includes("SHORT")) return 500+s;
+  if (setup.includes("HP SHORT")) return -500+s;
+  if (setup.includes("SHORT")) return -800+s;
+  return s;
+}
+
+function sortBy(col, opts={}) {
+  const type=TYPES[col];
+  if (opts.initial){ sortCol=col; sortAsc=opts.asc??false; }
+  else if (sortCol===col) sortAsc=!sortAsc;
+  else { sortCol=col; sortAsc=(type!=="num"); }
+
+  const tb=document.getElementById("tbody");
+  const all=[...tb.querySelectorAll("tr")];
+  const crypto=all.filter(tr=>tr.dataset.section==="crypto");
+  const tradfi=all.filter(tr=>tr.dataset.section==="tradfi");
+  const divider=all.find(tr=>tr.dataset.section==="divider");
+  const cmp=(a,b)=>{
+    if (col===COL.score||col===COL.setup||col===11){ const c=conviction(a)-conviction(b); return sortAsc?c:-c; }
+    const av=cellVal(a.children[col],type), bv=cellVal(b.children[col],type);
+    let c=type==="num"?av-bv:(av<bv?-1:av>bv?1:0);
+    return sortAsc?c:-c;
+  };
+  crypto.sort(cmp); tradfi.sort(cmp);
+  tb.innerHTML="";
+  crypto.forEach(tr=>tb.appendChild(tr));
+  if (divider) tb.appendChild(divider);
+  tradfi.forEach(tr=>tb.appendChild(tr));
+  markSort(); filt();
+}
+function markSort() {
+  ths().forEach((th,i)=>{
+    th.classList.toggle("sorted", i===sortCol);
+    const a=th.querySelector(".arrow");
+    if (a) a.textContent = i===sortCol ? (sortAsc?"▲":"▼") : "";
+  });
+}
+
+async function loadSection(signal, {dex=null, section="crypto"}={}) {
+  const body={ type:"metaAndAssetCtxs" };
+  if (dex) body.dex=dex;
+  const data=await apiPost(body, signal);
+  const meta=data[0], ctxs=data[1], universe=meta.universe||[];
+  const out=[];
+  for (let i=0;i<universe.length;i++){
+    const u=universe[i], name=u.name;
+    if (!name||u.isDelisted) continue;
+    const bareName = name.includes(":") ? name.split(":").slice(1).join(":") : name;
+    if (STABLES.has(bareName.toUpperCase())||STABLES.has(name.toUpperCase())) continue;
+    const ctx=ctxs[i]||{};
+    const mid=Number(ctx.midPx??ctx.markPx);
+    const oi=Number(ctx.openInterest);
+    const dayNtl=Number(ctx.dayNtlVlm);
+    if (!Number.isFinite(mid)||mid<=0) continue;
+    if (!Number.isFinite(oi)||oi<=0) continue;
+    if (oi*mid < MIN_OI_USD) continue;
+    const funding = Number(ctx.funding);
+    const premium = Number(ctx.premium);
+    out.push({
+      coin:name, display:bareName, section, mid, oi, dayNtl,
+      funding: Number.isFinite(funding)?funding:null,
+      premium: Number.isFinite(premium)?premium:null,
+      relVol:null, heatRank:null, attn:null,
+      oiDelta:null, oiDir:null, stYes:null, score:null, side:null, setup:null, hp:false, why:[]
+    });
+  }
+  out.sort((a,b)=>(b.dayNtl||0)-(a.dayNtl||0));
+  return out;
+}
+
+async function loadUniverse(signal) {
+  const crypto=await loadSection(signal,{section:"crypto"});
+  await sleep(250);
+  let tradfi=[];
+  try { tradfi=await loadSection(signal,{dex:"xyz",section:"tradfi"}); }
+  catch(e){ if(e.name==="AbortError") throw e; console.warn("xyz load failed",e); }
+  return {crypto, tradfi};
+}
+
+async function mapPool(items, limit, fn, signal) {
+  let i=0, done=0;
+  await Promise.all(Array.from({length:Math.min(limit,items.length)}, async()=>{
+    while(true){
+      if (signal?.aborted) return;
+      const idx=i++;
+      if (idx>=items.length) return;
+      try { await fn(items[idx]); }
+      catch(e){ if(e.name==="AbortError") return; console.warn(items[idx].coin,e); }
+      done++; setStatus(`Candles ${done}/${items.length}`);
+    }
+  }));
+}
+
+async function reloadAll() {
+  if (abortCtrl) abortCtrl.abort();
+  abortCtrl=new AbortController();
+  const signal=abortCtrl.signal;
+  buildHeader();
+  setStatus("Fetching universe…");
+  document.getElementById("meta").textContent="Fetching Hyperliquid… · momentum score · OI Δ ~15m · SuperTrend 4H";
+  let crypto=[], tradfi=[];
+  try { ({crypto,tradfi}=await loadUniverse(signal)); }
+  catch(e){ if(e.name!=="AbortError") setStatus("Universe failed: "+e.message,true); return; }
+  rows=[...crypto,...tradfi];
+  const nowMs=Date.now();
+  const prior=loadOiStore();
+  for (const r of rows) computeOiDelta(r, prior, nowMs);
+  recordOiSnapshot(nowMs, rows);
+  setStatus("Fetching attention (CoinGecko trending)…");
+  await fetchTrendingHeat(signal);
+  applyAttentionFields();
+
+  const asof=new Date().toISOString().replace("T"," ").slice(0,19)+" UTC";
+  document.getElementById("meta").textContent=`As of ${asof} · TF+ST+OI+RS+attention (fund/prem/RVol/CG heat) · HP longs top`;
+  renderSkeleton();
+  rows.forEach(paintOi);
+  setStatus(`Universe ${crypto.length}+${tradfi.length} — candles… · ${oiCacheStatus(nowMs)}`);
+  await mapPool(rows, CONCURRENCY, async(row)=>{
+    await surveyCoin(row, nowMs, signal);
+    paintPcts(row);
+  }, signal);
+  if (!signal.aborted) {
+    updateRegime();
+    sortBy(COL.score,{initial:true,asc:false});
+    const hpL=rows.filter(r=>r.hp&&r.side==="LONG").length;
+    const hpS=rows.filter(r=>r.hp&&r.side==="SHORT").length;
+    const rg=btcRegime.kind==="trad"?"SHORT TRADFI":btcRegime.kind==="alts"?"ALTS OK":btcRegime.kind==="mixed"?"MIXED":"ENV…";
+    setStatus(`Done · ${crypto.length}+${tradfi.length} · ${rg} · ★${hpL} HP LONG / ★${hpS} HP SHORT · ${oiCacheStatus(nowMs)}`);
+    checkAllScoreJumps();
+    startOiPoller();
+    startJumpWatcher();
+  }
+}
+
+async function ingestCtxs(data, snapRows) {
+  const meta=data[0], ctxs=data[1], universe=meta.universe||[];
+  for (let i=0;i<universe.length;i++){
+    const u=universe[i], name=u.name;
+    if (!name||u.isDelisted) continue;
+    const bareName=name.includes(":")?name.split(":").slice(1).join(":"):name;
+    if (STABLES.has(bareName.toUpperCase())||STABLES.has(name.toUpperCase())) continue;
+    const oi=Number(ctxs[i]?.openInterest);
+    const mid=Number(ctxs[i]?.midPx??ctxs[i]?.markPx);
+    if (!Number.isFinite(oi)) continue;
+    snapRows.push({coin:name, oi});
+    const row=rows.find(r=>r.coin===name);
+    if (row){
+      row.oi=oi;
+      if(Number.isFinite(mid)&&mid>0) row.mid=mid;
+      const funding=Number(ctxs[i]?.funding);
+      const premium=Number(ctxs[i]?.premium);
+      const dayNtl=Number(ctxs[i]?.dayNtlVlm);
+      if (Number.isFinite(funding)) row.funding=funding;
+      if (Number.isFinite(premium)) row.premium=premium;
+      if (Number.isFinite(dayNtl)) row.dayNtl=dayNtl;
+    }
+  }
+}
+
+async function pollOi() {
+  try {
+    const nowMs=Date.now();
+    const snapRows=[];
+    await ingestCtxs(await apiPost({type:"metaAndAssetCtxs"}), snapRows);
+    try { await ingestCtxs(await apiPost({type:"metaAndAssetCtxs",dex:"xyz"}), snapRows); }
+    catch(e){ console.warn("OI xyz failed",e); }
+    const prior=loadOiStore();
+    for (const row of rows) {
+      computeOiDelta(row, prior, nowMs);
+      paintOi(row);
+      if (row.tr && row.tr.children[2] && Number.isFinite(row.mid)) {
+        row.tr.children[2].textContent=fmtMid(row.mid);
+        row.tr.children[2].setAttribute("data-v",String(row.mid));
+      }
+      if (row.tr && row.tr.children[3]) {
+        const ntl=oiUsd(row);
+        row.tr.children[3].textContent=fmtCompact(ntl);
+        row.tr.children[3].setAttribute("data-v", ntl==null?"":String(ntl));
+      }
+      if (row.tr && row.stYes===false && Number.isFinite(row.stFlip) && Number.isFinite(row.mid) && row.mid>0) {
+        row.stDist=100*(row.stFlip-row.mid)/row.mid;
+        const sd=row.tr.children[6];
+        if (sd){ const c=stDistCell(row); sd.className=c.cls; sd.textContent=c.text; sd.setAttribute("data-v",c.v==null||c.v===""?"":String(c.v)); }
+      }
+    }
+    recordOiSnapshot(nowMs, snapRows);
+    applyAttentionFields();
+    refreshAllScores();
+    const s=document.getElementById("status");
+    if (s && !s.className.includes("err")) {
+      const hpL=rows.filter(r=>r.hp&&r.side==="LONG").length;
+      setStatus(`Live · ${rows.length} mkts · ★${hpL} HP LONG · ${oiCacheStatus(nowMs)}`);
+    }
+  } catch(e){ console.warn("OI poll failed",e); }
+}
+
+function startOiPoller() {
+  if (oiTimer) clearInterval(oiTimer);
+  oiTimer=setInterval(pollOi, OI_POLL_MS);
+}
+
+loadScoreHist();
+pushStatusUI();
+buildHeader();
+reloadAll();
+</script>
+</body>
+</html>
