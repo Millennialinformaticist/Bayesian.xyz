@@ -1,4 +1,4 @@
-# HL Momentum Survey + BCM
+# Bayesian.xyz
 
 Browser-based Hyperliquid momentum screener with a **Bayesian Conviction Multiplier (BCM)** gate for the 90–100 score band (actionable leveraged longs).
 
