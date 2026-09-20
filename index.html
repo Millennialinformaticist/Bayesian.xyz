@@ -346,7 +346,7 @@ const TYPES = ["num","str","num","num","num","str","num","num","num","num","num"
 const COL = { side:12, score:13, setup:14, dayNtl:15 };
 let trendingHeat = new Map(); // symbol -> rank 1..15 (1 = hottest)
 let medianDayNtl = 0;
-const CONCURRENCY = 6;
+const CONCURRENCY = 3;
 const FETCH_TIMEOUT_MS = 12000;
 const OI_STORE_KEY = "hl_momentum_oi_v1";
 const OI_DELTA_MS = 15*60*1000;
@@ -1584,9 +1584,9 @@ async function mapPool(items, limit, fn, signal) {
       try {
         await fn(work[idx]);
       } catch (e) {
-        if (signal?.aborted || e?.name === "AbortError") return;
+        if (signal?.aborted) return;
         fails++;
-        console.warn(work[idx].coin, e);
+        console.warn(work[idx]?.coin || idx, e);
       }
       done++;
       setStatus(`Candles ${done}/${n}${fails ? ` · ${fails} fail` : ""}`);
