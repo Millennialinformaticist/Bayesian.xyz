@@ -15,8 +15,6 @@ Most screeners print a high score when price + OI + trend look hot. That is nece
 
 If you see **90–100** or **BCM ★**, the prior has been updated with evidence and cleared the actionable leveraged-long threshold.
 
-That gate is the product.
-
 ## Bayesian Conviction Multiplier (BCM)
 
 **Prior** — Hyperliquid momentum long trigger (~60% base win rate).
