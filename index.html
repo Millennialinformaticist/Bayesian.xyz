@@ -347,6 +347,7 @@ const COL = { side:12, score:13, setup:14, dayNtl:15 };
 let trendingHeat = new Map(); // symbol -> rank 1..15 (1 = hottest)
 let medianDayNtl = 0;
 const CONCURRENCY = 6;
+const FETCH_TIMEOUT_MS = 12000;
 const OI_STORE_KEY = "hl_momentum_oi_v1";
 const OI_DELTA_MS = 15*60*1000;
 const OI_MIN_AGE_MS = 10*60*1000;
@@ -436,6 +437,14 @@ function colorFor(v) {
   return "var(--ink-2)";
 }
 
+
+function withTimeout(promise, ms, label) {
+  let to;
+  const killer = new Promise((_, rej) => {
+    to = setTimeout(() => rej(new Error(`timeout ${ms}ms ${label||""}`.trim())), ms);
+  });
+  return Promise.race([promise, killer]).finally(() => clearTimeout(to));
+}
 async function apiPost(body, signal) {
   for (let i=0;i<12;i++) {
     let res;
@@ -581,11 +590,11 @@ function superTrend(candles, period=ST_ATR, mult=ST_MULT) {
 }
 
 async function fetchCandles(coin, interval, startMs, endMs, signal) {
-  const data = await apiPost({
-    type:"candleSnapshot",
-    req:{ coin, interval, startTime:startMs, endTime:endMs }
-  }, signal);
-  return (data||[]).slice().sort((a,b)=>Number(a.t)-Number(b.t));
+  const data = await withTimeout(apiPost({
+    type: "candleSnapshot",
+    req: { coin, interval, startTime: startMs, endTime: endMs }
+  }, signal), FETCH_TIMEOUT_MS, `${coin} ${interval}`);
+  return (data || []).slice().sort((a, b) => Number(a.t) - Number(b.t));
 }
 function emaLast(vals, span) {
   if(!vals||!vals.length) return null;
@@ -600,9 +609,9 @@ async function surveyCoin(row, nowMs, signal) {
   const s1h = nowMs - 48*3600*1000;
   const s4h = nowMs - (isBtc(row)?45:16)*24*3600*1000;
   const s1d = nowMs - 100*24*3600*1000;
-  const c15 = await fetchCandles(row.coin,"15m",s15,nowMs,signal); await sleep(180);
-  const c1h = await fetchCandles(row.coin,"1h",s1h,nowMs,signal); await sleep(180);
-  const c4h = await fetchCandles(row.coin,"4h",s4h,nowMs,signal); await sleep(180);
+  const c15 = await fetchCandles(row.coin,"15m",s15,nowMs,signal); await sleep(40);
+  const c1h = await fetchCandles(row.coin,"1h",s1h,nowMs,signal); await sleep(40);
+  const c4h = await fetchCandles(row.coin,"4h",s4h,nowMs,signal); await sleep(40);
   const c1d = await fetchCandles(row.coin,"1d",s1d,nowMs,signal);
 
   for (const [label, hours] of WINDOWS) {
@@ -1564,15 +1573,23 @@ async function loadUniverse(signal) {
 }
 
 async function mapPool(items, limit, fn, signal) {
-  let i=0, done=0;
-  await Promise.all(Array.from({length:Math.min(limit,items.length)}, async()=>{
-    while(true){
+  let i = 0, done = 0, fails = 0;
+  const work = items.filter(r => r && r.section !== "divider");
+  const n = work.length;
+  await Promise.all(Array.from({ length: Math.min(limit, n) }, async () => {
+    while (true) {
       if (signal?.aborted) return;
-      const idx=i++;
-      if (idx>=items.length) return;
-      try { await fn(items[idx]); }
-      catch(e){ if(e.name==="AbortError") return; console.warn(items[idx].coin,e); }
-      done++; setStatus(`Candles ${done}/${items.length}`);
+      const idx = i++;
+      if (idx >= n) return;
+      try {
+        await fn(work[idx]);
+      } catch (e) {
+        if (signal?.aborted || e?.name === "AbortError") return;
+        fails++;
+        console.warn(work[idx].coin, e);
+      }
+      done++;
+      setStatus(`Candles ${done}/${n}${fails ? ` · ${fails} fail` : ""}`);
     }
   }));
 }
