@@ -263,8 +263,8 @@ tr.jump-flash td { animation: jumpFlash 1.2s ease; }
 <h1>Bayesian Screener</h1>
 <p class="meta" id="meta">Loading… · multi-TF momentum + OI confirm + SuperTrend 4H · HP longs outlined at top</p>
 <div id="btc-regime" class="pending">
-  <span class="rg-label">ENV · …</span>
-  <span class="rg-detail">Reading BTC…</span>
+  <span class="rg-label">LIQUIDITY · SCANNING</span>
+  <span class="rg-detail">Awaiting BTC flow &amp; structure…</span>
 </div>
 <div class="legend" id="legend">
   <b>Score</b> = momentum + attention · <b>90–100 = BCM only</b>
@@ -376,7 +376,7 @@ let rows = [];
 let sortCol = 13; // Score
 let sortAsc = false;
 let abortCtrl = null;
-let btcRegime = { kind:"pending", label:"ENV · …", detail:"Reading BTC…" };
+let btcRegime = { kind:"pending", label:"LIQUIDITY · SCANNING", detail:"Awaiting BTC flow & structure…" };
 let btcRow = null;
 
 function bare(name) {
@@ -1210,7 +1210,7 @@ function whyTitle(row) {
 
 function classifyBtc(btc) {
   if (!btc || btc.stYes==null || btc["4H"]==null || !Number.isFinite(btc["4H"])) {
-    return { kind:"pending", label:"ENV · …", detail:"Reading BTC…" };
+    return { kind:"pending", label:"LIQUIDITY · SCANNING", detail:"Awaiting BTC flow & structure…" };
   }
   const h4=btc["4H"], h1=btc["1H"], st=btc.stYes;
   const dumping = h4<-0.35 || (!st && Number.isFinite(h1) && h1<-0.2);
@@ -1222,10 +1222,10 @@ function classifyBtc(btc) {
   if (Number.isFinite(s.week)){ sn++; if(s.week>0) sb++; }
   const firm = sn>0 && sb>=2;
   const broken = sn>0 && (sn-sb)>=2;
-  if (dumping && broken) return { kind:"trad", label:"ENV · TRAD FOCUS", detail:"BTC dumping + weak structure — alts gated; lean SHORT TRADFI" };
-  if (dumping) return { kind:"mixed", label:"ENV · MIXED — alts ok", detail: firm ? "BTC soft ST, structure fine — alts allowed" : "BTC soft — alts ok, selective" };
-  if (rising || firm) return { kind:"alts", label:"ENV · ALTS OK", detail: rising ? "BTC supportive — alt longs favored" : "BTC not dumping — alt longs ok" };
-  return { kind:"mixed", label:"ENV · MIXED — alts ok", detail:"Chop — prefer clean HP setups" };
+  if (dumping && broken) return { kind:"trad", label:"LIQUIDITY · CONTRACTING", detail:"BTC distribution — alt longs suppressed; prefer short TRADFI" };
+  if (dumping) return { kind:"mixed", label:"LIQUIDITY · MIXED", detail: firm ? "BTC soft, structure intact — alts selective" : "BTC unstable — require HP confirmation" };
+  if (rising || firm) return { kind:"alts", label:"LIQUIDITY · EXPANDING", detail: rising ? "BTC bid present — alt risk appetite open" : "BTC not distributing — alt risk appetite open" };
+  return { kind:"mixed", label:"LIQUIDITY · MIXED", detail:"BTC range / chop — require HP confirmation" };
 }
 
 function paintRegime() {
@@ -1573,7 +1573,7 @@ async function reloadAll() {
     sortBy(COL.score,{initial:true,asc:false});
     const hpL=rows.filter(r=>r.hp&&r.side==="LONG").length;
     const hpS=rows.filter(r=>r.hp&&r.side==="SHORT").length;
-    const rg=btcRegime.kind==="trad"?"SHORT TRADFI":btcRegime.kind==="alts"?"ALTS OK":btcRegime.kind==="mixed"?"MIXED":"ENV…";
+    const rg=btcRegime.kind==="trad"?"CONTRACTING":btcRegime.kind==="alts"?"EXPANDING":btcRegime.kind==="mixed"?"MIXED":"SCANNING";
     setStatus(`Done · ${crypto.length}+${tradfi.length} · ${rg} · ★${hpL} HP LONG / ★${hpS} HP SHORT · ${oiCacheStatus(nowMs)}`);
     checkAllScoreJumps();
     startOiPoller();
