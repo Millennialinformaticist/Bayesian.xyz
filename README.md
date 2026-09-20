@@ -13,7 +13,7 @@ Most screeners print a high score when price + OI + trend look hot. That is nece
 | −100…89 | Momentum stack + attention (multi-TF, SuperTrend, OI Δ, RS, funding / premium / RVol / retail heat) |
 | **90–100** | **BCM only** — Bayesian *Sureness* ≥ 90. Raw momentum is hard-capped at **89** without it. |
 
-If you see **90–100** or **BCM ★**, the model has updated a prior with evidence and cleared an actionable leveraged-long threshold — not a cosmetics boost on a hot tape.
+If you see **90–100** or **BCM ★**, the prior has been updated with evidence and cleared the actionable leveraged-long threshold.
 
 That gate is the product.
 
