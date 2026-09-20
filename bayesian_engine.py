@@ -1,18 +1,9 @@
 """
-Bayesian Conviction Multiplier (BCM) Engine
-==========================================
-Elevates HL Momentum Screener confidence for leveraged longs.
+BCM — Bayesian Conviction Multiplier.
 
-Treats the base HL momentum signal as a Prior, then updates with three
-conditionally independent evidence layers:
-
-  1. DLO  — Directional Logistic Oscillator / macro regime alignment
-  2. CVD  — Cumulative Volume Delta / aggressive order-flow absorption
-  3. Sweep — Liquidity sweep (stops taken) then reclaim
-
-Sureness_Score is 0–100. Scores >= 90 set Actionable_Leveraged_Long.
-In the browser screener, display scores in the 90–100 band are ONLY
-assigned when BCM sureness clears this threshold.
+Prior = HL momentum long trigger. Evidence = DLO, CVD, Sweep (naive Bayes LRs).
+Sureness 0–100; >= 90 → Actionable_Leveraged_Long.
+Browser screener: display scores 90–100 only when Sureness clears 90.
 """
 
 from __future__ import annotations

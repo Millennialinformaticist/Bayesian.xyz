@@ -4,6 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Bayesian Screener</title>
+<meta name="description" content="Hyperliquid momentum screener. Scores 90–100 only with BCM Sureness ≥ 90.">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap');
 :root {
@@ -261,18 +262,18 @@ tr.jump-flash td { animation: jumpFlash 1.2s ease; }
 </head>
 <body>
 <h1>Bayesian Screener</h1>
-<p class="meta" id="meta">Loading… · multi-TF momentum + OI confirm + SuperTrend 4H · HP longs outlined at top</p>
+<p class="meta" id="meta">Loading… · HL momentum · BCM gates 90–100</p>
 <div id="btc-regime" class="pending">
   <span class="rg-label">LIQUIDITY · SCANNING</span>
   <span class="rg-detail">Awaiting BTC flow &amp; structure…</span>
 </div>
 <div class="legend" id="legend">
-  <b>Score</b> = momentum + attention · <b>90–100 = BCM only</b>
+  <b>Score</b> = momentum + attention · <b>90–100 = BCM only</b> (Sureness ≥ 90)
   <button type="button" class="legend-toggle" id="legend-toggle" onclick="toggleLegend()">details</button>
   <div class="legend-body" id="legend-body" hidden>
-    Bayesian Conviction: Prior=HL signal × DLO × CVD × Liquidity Sweep → Sureness.
-    <span class="g">BCM ★ / HP LONG</span> boxed green · <span class="r">HP SHORT</span> boxed red.
-    Push ladder <b>40→80→90→100</b> (90/100 need BCM). Keyboard-first — press <b>?</b>.
+    Prior = HL long trigger. Evidence = DLO × CVD × Sweep → Sureness.
+    <span class="g">BCM ★ / HP LONG</span> green box · <span class="r">HP SHORT</span> red box.
+    Push <b>40→80→90→100</b> (90/100 need BCM). Keyboard: press <b>?</b>
   </div>
 </div>
 <div class="toolbar">
