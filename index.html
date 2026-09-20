@@ -278,8 +278,8 @@ tr.jump-flash td { animation: jumpFlash 1.2s ease; }
 <div class="toolbar">
   <input id="q" placeholder="Filter: BTC, ETH, SOL…" oninput="filt()"/>
   <select id="view" onchange="filt()">
-    <option value="all">All</option>
-    <option value="hp" selected>HP only</option>
+    <option value="all" selected>All</option>
+    <option value="hp">HP only</option>
     <option value="longs">Longs</option>
     <option value="shorts">Shorts</option>
     <option value="setups">Any setup</option>
@@ -345,7 +345,7 @@ const TYPES = ["num","str","num","num","num","str","num","num","num","num","num"
 const COL = { side:12, score:13, setup:14, dayNtl:15 };
 let trendingHeat = new Map(); // symbol -> rank 1..15 (1 = hottest)
 let medianDayNtl = 0;
-const CONCURRENCY = 3;
+const CONCURRENCY = 6;
 const OI_STORE_KEY = "hl_momentum_oi_v1";
 const OI_DELTA_MS = 15*60*1000;
 const OI_MIN_AGE_MS = 10*60*1000;
@@ -657,8 +657,15 @@ function signPct(v) {
 
 async function fetchTrendingHeat(signal) {
   trendingHeat = new Map();
+  const ctrl = new AbortController();
+  const onAbort = () => ctrl.abort();
+  if (signal) {
+    if (signal.aborted) return;
+    signal.addEventListener("abort", onAbort, { once: true });
+  }
+  const timer = setTimeout(() => ctrl.abort(), 2500);
   try {
-    const res = await fetch("https://api.coingecko.com/api/v3/search/trending", { signal });
+    const res = await fetch("https://api.coingecko.com/api/v3/search/trending", { signal: ctrl.signal });
     if (!res.ok) return;
     const data = await res.json();
     const coins = data.coins || [];
@@ -668,6 +675,9 @@ async function fetchTrendingHeat(signal) {
     });
   } catch (e) {
     if (e.name !== "AbortError") console.warn("CG trending failed", e);
+  } finally {
+    clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", onAbort);
   }
 }
 
@@ -1555,19 +1565,29 @@ async function reloadAll() {
   const prior=loadOiStore();
   for (const r of rows) computeOiDelta(r, prior, nowMs);
   recordOiSnapshot(nowMs, rows);
-  setStatus("Fetching attention (CoinGecko trending)…");
-  await fetchTrendingHeat(signal);
-  applyAttentionFields();
 
+  // Paint skeleton immediately — don't wait on CoinGecko
+  applyAttentionFields();
   const asof=new Date().toISOString().replace("T"," ").slice(0,19)+" UTC";
-  document.getElementById("meta").textContent=`As of ${asof} · TF+ST+OI+RS+attention (fund/prem/RVol/CG heat) · HP longs top`;
+  document.getElementById("meta").textContent=`As of ${asof} · TF+ST+OI+RS+attention · HP longs top`;
   renderSkeleton();
   rows.forEach(paintOi);
   setStatus(`Universe ${crypto.length}+${tradfi.length} — candles… · ${oiCacheStatus(nowMs)}`);
+
+  // CoinGecko in parallel (2.5s cap); apply heat when it lands without blocking candles
+  const heatP = fetchTrendingHeat(signal).then(() => {
+    applyAttentionFields();
+    for (const r of rows) {
+      if (r.section === "divider") continue;
+      if (r["4H"]!=null || r.stYes!=null) refreshScoreUI(r);
+    }
+  });
+
   await mapPool(rows, CONCURRENCY, async(row)=>{
     await surveyCoin(row, nowMs, signal);
     paintPcts(row);
   }, signal);
+  await Promise.race([heatP, new Promise(r => setTimeout(r, 0))]);
   if (!signal.aborted) {
     updateRegime();
     sortBy(COL.score,{initial:true,asc:false});
