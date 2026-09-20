@@ -55,3 +55,9 @@ All other alerts muted. Browser push only on ladder jumps:
 ## License
 
 MIT
+
+## Keyboard (desk-first)
+- `?` help · `/` filter · `j`/`k` move · `Enter` open on Hyperliquid
+- `1`–`5` views (All / HP / Longs / Shorts / Setups) · `r` refresh · `p` push · `s` sort score · `h` legend
+- Optimized **long** rows: green box · optimized **short** rows: red box
+- Visual language aligned with Gambit Terminal (Archivo + Spline Sans Mono, olive-black desk)
