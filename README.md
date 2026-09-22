@@ -49,3 +49,7 @@ Hyperliquid public `/info` + CoinGecko trending. No API keys.
 ## License
 
 MIT
+
+## 15m 9-HMA cross scanner
+
+Optional companion page: [`HMA9-15m-cross-scanner.html`](./HMA9-15m-cross-scanner.html) — alerts when price crosses **above** Hull(9) on 15m (watch example: LIT / Lighter).

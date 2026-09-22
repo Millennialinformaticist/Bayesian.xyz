@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>15m · Cross ABOVE 9-HMA</title>
+<style>
+  :root {
+    --bg:#0b0f14; --panel:#121820; --line:#1e2a36; --ink:#e8eef4; --muted:#8b9aab;
+    --up:#3dd68c; --down:#f07178; --accent:#5cc8ff; --warn:#ffc857;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.4 var(--sans); }
+  header { padding:14px 18px 10px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
+  h1 { margin:0 0 4px; font-size:16px; letter-spacing:.03em; }
+  .sub { color:var(--muted); font-size:12px; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+  input, select, button {
+    background:#0e141c; color:var(--ink); border:1px solid var(--line);
+    border-radius:8px; padding:7px 10px; font:12px var(--mono);
+  }
+  button { cursor:pointer; }
+  button.primary { background:#17324a; border-color:#2a5f86; color:#d7efff; }
+  button.on { background:#143528; border-color:#2f7a55; color:#c8f5df; }
+  #status { color:var(--muted); font:12px var(--mono); }
+  #status.err { color:var(--down); }
+  .wrap { padding:12px 18px 40px; }
+  table { width:100%; border-collapse:collapse; font:12px var(--mono); }
+  th, td { padding:7px 8px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
+  th:nth-child(1), td:nth-child(1), th:nth-child(2), td:nth-child(2) { text-align:left; }
+  th { color:var(--muted); font-weight:600; position:sticky; top:110px; background:var(--bg); }
+  tr.fire { background:color-mix(in srgb, var(--up) 18%, transparent); }
+  tr.arm { background:color-mix(in srgb, var(--warn) 12%, transparent); }
+  tr.watch { outline:1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+  .up { color:var(--up); } .down { color:var(--down); } .muted { color:var(--muted); }
+  .pill { display:inline-block; padding:1px 7px; border-radius:999px; border:1px solid var(--line); font-size:11px; }
+  .pill.fire { border-color:var(--up); color:var(--up); }
+  .pill.arm { border-color:var(--warn); color:var(--warn); }
+  .pill.above { border-color:#2f7a55; color:var(--up); }
+  .pill.below { border-color:#7a2f3a; color:var(--down); }
+  .log { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; max-height:240px; overflow:auto; font:11px var(--mono); color:var(--muted); }
+  .log b { color:var(--ink); }
+  .log .up { color:var(--up); }
+</style>
+</head>
+<body>
+<header>
+  <h1>15m · Cross ABOVE 9-HMA</h1>
+  <div class="sub">Hyperliquid perps · notify when price crosses <b>above</b> Hull Moving Average(9) on 15m · example watch: <b>LIT</b> (Lighter)</div>
+  <div class="toolbar">
+    <input id="q" placeholder="Filter coin…" oninput="render()"/>
+    <select id="view" onchange="render()">
+      <option value="action">Action (FIRE / ARM)</option>
+      <option value="all" selected>All scanned</option>
+      <option value="above">Above HMA</option>
+      <option value="below">Below HMA</option>
+      <option value="watch">Watchlist only</option>
+    </select>
+    <button class="primary" id="btn-scan" onclick="scanNow()">Scan now</button>
+    <button id="btn-sound" onclick="toggleSound()">Sound OFF</button>
+    <button id="btn-push" onclick="enablePush()">Enable push</button>
+    <label class="sub"><input type="checkbox" id="auto" checked/> auto 30s</label>
+    <span id="status">Idle</span>
+  </div>
+</header>
+<div class="wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Coin</th><th>Mid</th><th>9-HMA</th><th>Dist%</th><th>State</th>
+        <th>Prev close</th><th>Signal</th><th>15m %</th><th>OI $</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="log" id="log"><b>Alerts</b> — waiting for first scan…</div>
+</div>
+<script>
+(() => {
+  const HL_INFO = "https://api.hyperliquid.xyz/info";
+  const WATCH = new Set(["LIT"]); // Lighter
+  const HMA_LEN = 9;
+  const ARM_PCT = 0.35; // within 0.35% below HMA counts as ARMING
+  const POLL_MS = 30_000;
+  const CANDLE_N = 64;
+  const SCAN_CAP = 80;
+  const CONCURRENCY = 4;
+  const HIST_KEY = "hma9_cross_up_hist_v1";
+
+  let rows = [];
+  let soundOn = false;
+  let pushOn = false;
+  let scanning = false;
+  let timer = null;
+  let hist = {};
+  try { hist = JSON.parse(localStorage.getItem(HIST_KEY) || "{}"); } catch { hist = {}; }
+
+  function saveHist() {
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(hist)); } catch {}
+  }
+
+  function setStatus(msg, isErr) {
+    const el = document.getElementById("status");
+    el.textContent = msg;
+    el.className = isErr ? "err" : "";
+  }
+
+  function logAlert(html) {
+    const el = document.getElementById("log");
+    const t = new Date().toLocaleTimeString("en-US", { hour12: false, timeZone: "America/New_York" }) + " ET";
+    el.innerHTML = `<div>[${t}] ${html}</div>` + el.innerHTML;
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async function apiPost(body, signal) {
+    for (let i = 0; i < 6; i++) {
+      let res;
+      try {
+        res = await fetch(HL_INFO, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal
+        });
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
+        await sleep(400 + i * 350);
+        continue;
+      }
+      if (res.status === 429) { await sleep(1500 + i * 1200); continue; }
+      if (res.status >= 500) { await sleep(700 + i * 500); continue; }
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }
+    throw new Error("retries exhausted");
+  }
+
+  function wma(arr, period) {
+    if (arr.length < period) return null;
+    let s = 0, w = 0;
+    for (let i = 0; i < period; i++) {
+      const wt = i + 1;
+      s += arr[arr.length - period + i] * wt;
+      w += wt;
+    }
+    return s / w;
+  }
+
+  function hmaSeries(closes, period = HMA_LEN) {
+    const half = Math.max(1, Math.floor(period / 2));
+    const sqrtN = Math.max(1, Math.round(Math.sqrt(period)));
+    const raw = new Array(closes.length).fill(null);
+    const out = new Array(closes.length).fill(null);
+    for (let i = 0; i < closes.length; i++) {
+      if (i + 1 < period) continue;
+      const slice = closes.slice(0, i + 1);
+      raw[i] = 2 * wma(slice, half) - wma(slice, period);
+    }
+    for (let i = 0; i < closes.length; i++) {
+      if (i + 1 < period + sqrtN - 1) continue;
+      const seg = raw.slice(i - sqrtN + 1, i + 1);
+      if (seg.some(v => v == null)) continue;
+      let s = 0, w = 0;
+      for (let j = 0; j < sqrtN; j++) { const wt = j + 1; s += seg[j] * wt; w += wt; }
+      out[i] = s / w;
+    }
+    return out;
+  }
+
+  function beep() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!window.__hmaAc) window.__hmaAc = new AC();
+      const ctx = window.__hmaAc;
+      if (ctx.state === "suspended") ctx.resume();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(880, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(1400, ctx.currentTime + 0.14);
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.38);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + 0.4);
+    } catch {}
+  }
+
+  function notify(title, body) {
+    if (soundOn) beep();
+    if (pushOn && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      try {
+        const n = new Notification(title, { body, tag: title, renotify: true });
+        n.onclick = () => { try { window.focus(); } catch {} n.close(); };
+      } catch {}
+    }
+  }
+
+  window.toggleSound = function () {
+    soundOn = !soundOn;
+    const btn = document.getElementById("btn-sound");
+    btn.textContent = soundOn ? "Sound ON" : "Sound OFF";
+    btn.className = soundOn ? "on" : "";
+    if (soundOn) beep();
+  };
+
+  window.enablePush = async function () {
+    if (typeof Notification === "undefined") { setStatus("Notifications unsupported", true); return; }
+    let p = Notification.permission;
+    if (p !== "granted") p = await Notification.requestPermission();
+    pushOn = p === "granted";
+    const btn = document.getElementById("btn-push");
+    btn.textContent = pushOn ? "Push ON" : "Enable push";
+    btn.className = pushOn ? "on" : "";
+    if (pushOn) notify("9-HMA scanner armed", "Alerts on cross ABOVE 9-HMA (15m)");
+  };
+
+  function fmt(n, d = 4) {
+    if (n == null || !Number.isFinite(n)) return "—";
+    if (Math.abs(n) >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+    return n.toLocaleString("en-US", { maximumFractionDigits: d });
+  }
+  function fmtPct(n) {
+    if (n == null || !Number.isFinite(n)) return "—";
+    return (n >= 0 ? "+" : "") + n.toFixed(3) + "%";
+  }
+  function fmtUsd(n) {
+    if (n == null || !Number.isFinite(n)) return "—";
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+    return n.toFixed(0);
+  }
+
+  async function mapPool(items, limit, fn) {
+    const out = new Array(items.length);
+    let i = 0;
+    async function worker() {
+      while (i < items.length) {
+        const idx = i++;
+        out[idx] = await fn(items[idx], idx);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+    return out;
+  }
+
+  async function fetchUniverse(signal) {
+    const data = await apiPost({ type: "metaAndAssetCtxs" }, signal);
+    const meta = data[0], ctxs = data[1];
+    const out = [];
+    for (let i = 0; i < meta.universe.length; i++) {
+      const name = meta.universe[i].name;
+      if (!name) continue;
+      const ctx = ctxs[i];
+      const mid = Number(ctx.midPx);
+      const oiUsd = Number(ctx.openInterest) * mid;
+      if (!Number.isFinite(mid) || mid <= 0) continue;
+      out.push({ coin: name, mid, oiUsd });
+    }
+    out.sort((a, b) => {
+      const aw = WATCH.has(a.coin) ? 1 : 0, bw = WATCH.has(b.coin) ? 1 : 0;
+      if (aw !== bw) return bw - aw;
+      return (b.oiUsd || 0) - (a.oiUsd || 0);
+    });
+    return out;
+  }
+
+  async function fetchCandles(coin, signal) {
+    const end = Date.now();
+    const start = end - CANDLE_N * 15 * 60 * 1000;
+    const data = await apiPost({
+      type: "candleSnapshot",
+      req: { coin, interval: "15m", startTime: start, endTime: end }
+    }, signal);
+    return (data || [])
+      .map(c => ({ t: Number(c.t), c: Number(c.c) }))
+      .filter(c => Number.isFinite(c.c));
+  }
+
+  function classify(row) {
+    const closes = row.closes;
+    const hmas = row.hmas;
+    if (!closes || closes.length < 5) {
+      return { state: "n/a", signal: "—", dist: null, ch15: null, hma: null, prevClose: null };
+    }
+    const i = closes.length - 1;
+    const mid = row.mid;
+    const hmaLive = hmas[i];
+    const prevClose = closes[i - 1];
+    const prevHma = hmas[i - 1];
+    const prev2Close = closes[i - 2];
+    const prev2Hma = hmas[i - 2];
+
+    let signal = "—";
+    let state = "n/a";
+
+    // Confirmed: last CLOSED bar crossed up through HMA
+    if ([prev2Close, prev2Hma, prevClose, prevHma].every(v => v != null)) {
+      if (prev2Close <= prev2Hma && prevClose > prevHma) {
+        signal = "FIRE · closed";
+        state = "fire";
+      }
+    }
+
+    // Live: mid crossed above current HMA vs prior close still ≤ prior HMA
+    if (state !== "fire" && prevClose != null && hmaLive != null) {
+      const priorH = prevHma != null ? prevHma : hmaLive;
+      if (prevClose <= priorH && mid > hmaLive) {
+        signal = "FIRE · live";
+        state = "fire";
+      } else if (mid < hmaLive && ((hmaLive - mid) / hmaLive * 100) <= ARM_PCT) {
+        signal = "ARMING";
+        state = "arm";
+      } else if (mid > hmaLive) {
+        signal = "above";
+        state = "above";
+      } else {
+        signal = "below";
+        state = "below";
+      }
+    }
+
+    const dist = (hmaLive != null && mid) ? (mid - hmaLive) / hmaLive * 100 : null;
+    const ch15 = closes.length >= 2 ? (closes[i] - closes[i - 1]) / closes[i - 1] * 100 : null;
+    return { state, signal, dist, ch15, hma: hmaLive, prevClose };
+  }
+
+  function maybeAlert(row) {
+    if (row.state !== "fire") return;
+    const bucket = Math.floor(Date.now() / (15 * 60 * 1000));
+    const key = row.coin + ":" + bucket;
+    if (hist[key]) return;
+    hist[key] = Date.now();
+    const keys = Object.keys(hist);
+    if (keys.length > 400) {
+      keys.sort((a, b) => hist[a] - hist[b]).slice(0, keys.length - 300).forEach(k => delete hist[k]);
+    }
+    saveHist();
+    logAlert(`<b class="up">${row.coin}</b> ${row.signal} · mid ${fmt(row.mid)} · HMA ${fmt(row.hma)} · ${fmtPct(row.dist)}`);
+    notify(`▲ ${row.coin} × 9-HMA`, `${row.coin} crossed ABOVE 9-HMA (15m). Mid ${fmt(row.mid)} · HMA ${fmt(row.hma)}`);
+  }
+
+  window.render = function () {
+    const q = (document.getElementById("q").value || "").trim().toUpperCase();
+    const view = document.getElementById("view").value;
+    let list = rows.slice();
+    if (q) list = list.filter(r => r.coin.includes(q));
+    if (view === "action") list = list.filter(r => r.state === "fire" || r.state === "arm");
+    if (view === "above") list = list.filter(r => r.state === "above" || r.state === "fire");
+    if (view === "below") list = list.filter(r => r.state === "below" || r.state === "arm");
+    if (view === "watch") list = list.filter(r => WATCH.has(r.coin));
+
+    const rank = s => (s === "fire" ? 0 : s === "arm" ? 1 : s === "above" ? 2 : 3);
+    list.sort((a, b) => {
+      const ra = rank(a.state), rb = rank(b.state);
+      if (ra !== rb) return ra - rb;
+      const aw = WATCH.has(a.coin) ? 0 : 1, bw = WATCH.has(b.coin) ? 0 : 1;
+      if (aw !== bw) return aw - bw;
+      if (a.state === "arm" && b.state === "arm") return Math.abs(a.dist || 99) - Math.abs(b.dist || 99);
+      return (b.oiUsd || 0) - (a.oiUsd || 0);
+    });
+
+    const tb = document.getElementById("tbody");
+    tb.innerHTML = "";
+    list.forEach((r, idx) => {
+      const tr = document.createElement("tr");
+      if (r.state === "fire") tr.classList.add("fire");
+      if (r.state === "arm") tr.classList.add("arm");
+      if (WATCH.has(r.coin)) tr.classList.add("watch");
+      const pill =
+        r.state === "fire" ? `<span class="pill fire">FIRE</span>` :
+        r.state === "arm" ? `<span class="pill arm">ARM</span>` :
+        r.state === "above" ? `<span class="pill above">above</span>` :
+        r.state === "below" ? `<span class="pill below">below</span>` :
+        `<span class="pill muted">n/a</span>`;
+      const distCls = (r.dist || 0) >= 0 ? "up" : "down";
+      tr.innerHTML = `
+        <td class="muted">${idx + 1}</td>
+        <td><b>${r.coin}</b>${WATCH.has(r.coin) ? ' · <span class="muted">Lighter</span>' : ""}</td>
+        <td>${fmt(r.mid)}</td>
+        <td>${fmt(r.hma)}</td>
+        <td class="${distCls}">${fmtPct(r.dist)}</td>
+        <td>${pill}</td>
+        <td>${fmt(r.prevClose)}</td>
+        <td>${r.signal}</td>
+        <td class="${(r.ch15 || 0) >= 0 ? "up" : "down"}">${fmtPct(r.ch15)}</td>
+        <td>${fmtUsd(r.oiUsd)}</td>`;
+      tb.appendChild(tr);
+    });
+  };
+
+  window.scanNow = async function () {
+    if (scanning) return;
+    scanning = true;
+    document.getElementById("btn-scan").disabled = true;
+    try {
+      setStatus("Fetching universe…");
+      const uni = await fetchUniverse();
+      const selected = [];
+      const seen = new Set();
+      for (const u of uni) {
+        if (WATCH.has(u.coin) && !seen.has(u.coin)) { selected.push(u); seen.add(u.coin); }
+      }
+      for (const u of uni) {
+        if (selected.length >= SCAN_CAP) break;
+        if (seen.has(u.coin)) continue;
+        if ((u.oiUsd || 0) < 1e6) continue;
+        selected.push(u); seen.add(u.coin);
+      }
+      setStatus(`Scanning ${selected.length} names · 15m 9-HMA…`);
+      const list = await mapPool(selected, CONCURRENCY, async (u) => {
+        try {
+          const candles = await fetchCandles(u.coin);
+          const closes = candles.map(c => c.c);
+          const hmas = hmaSeries(closes);
+          const row = Object.assign({}, u, { closes, hmas }, classify({ ...u, closes, hmas }));
+          maybeAlert(row);
+          return row;
+        } catch {
+          return Object.assign({}, u, { state: "n/a", signal: "err", dist: null, hma: null, prevClose: null, ch15: null });
+        }
+      });
+      rows = list.filter(Boolean);
+      render();
+      const lit = rows.find(r => r.coin === "LIT");
+      const litMsg = lit
+        ? `LIT mid ${fmt(lit.mid)} · HMA ${fmt(lit.hma)} · ${fmtPct(lit.dist)} · ${lit.signal}`
+        : "LIT n/a";
+      const et = new Date().toLocaleTimeString("en-US", { hour12: false, timeZone: "America/New_York" });
+      setStatus(`OK · ${rows.length} coins · ${et} ET · ${litMsg}`);
+    } catch (e) {
+      setStatus(String(e.message || e), true);
+    } finally {
+      scanning = false;
+      document.getElementById("btn-scan").disabled = false;
+    }
+  };
+
+  function armAuto() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(() => {
+      if (document.getElementById("auto").checked) scanNow();
+    }, POLL_MS);
+  }
+
+  document.getElementById("auto").addEventListener("change", armAuto);
+  armAuto();
+  scanNow();
+})();
+</script>
+</body>
+</html>
