@@ -31,16 +31,17 @@ class BayesianConvictionEngine:
         self.evidence_metrics: Dict[str, Dict[str, float]] = {
             "dlo_alignment": {"tpr": 0.75, "fpr": 0.30},   # LR ≈ 2.5
             "cvd_divergence": {"tpr": 0.60, "fpr": 0.20},  # LR ≈ 3.0
-            "liquidity_sweep": {"tpr": 0.50, "fpr": 0.25}, # LR ≈ 2.0
+            "liquidity_sweep": {"tpr": 0.60, "fpr": 0.25}, # LR ≈ 2.4; yes-only 2-of-3 clear 90 @ prior 0.60
         }
 
     def _calculate_likelihood_ratio(self, metric_name: str, condition_met: bool) -> float:
         stats = self.evidence_metrics.get(metric_name)
         if not stats:
             return 1.0
-        if condition_met:
-            return stats["tpr"] / stats["fpr"]
-        return (1.0 - stats["tpr"]) / (1.0 - stats["fpr"])
+        # Sparse evidence: inactive → LR 1 (uninformative), not a negative update.
+        if not condition_met:
+            return 1.0
+        return stats["tpr"] / stats["fpr"]
 
     def evaluate_tick(
         self,
@@ -95,12 +96,20 @@ class BayesianConvictionEngine:
 
 
 if __name__ == "__main__":
-    if pd is None:
-        # Tick-level smoke test without pandas
-        eng = BayesianConvictionEngine(base_win_rate=0.60, threshold=90.0)
-        print(eng.evaluate_tick(True, True, True, True))
-        print(eng.evaluate_tick(True, False, True, False))
-    else:
+    eng = BayesianConvictionEngine(base_win_rate=0.60, threshold=90.0)
+    # Tick-level smoke (no pandas required)
+    demos = [
+        ("all three", True, True, True, True),
+        ("DLO+CVD", True, True, True, False),
+        ("DLO+Sweep", True, True, False, True),
+        ("CVD+Sweep", True, False, True, True),
+        ("none", True, False, False, False),
+        ("no prior", False, True, True, True),
+    ]
+    for label, hl, dlo, cvd, sw in demos:
+        score, act = eng.evaluate_tick(hl, dlo, cvd, sw)
+        print(f"{label:12} sureness={score:6.2f} actionable={act}")
+    if pd is not None:
         mock = pd.DataFrame(
             {
                 "timestamp": pd.date_range("2026-09-20", periods=4, freq="min"),
@@ -110,7 +119,6 @@ if __name__ == "__main__":
                 "sweep_condition": [True, False, False, False],
             }
         )
-        eng = BayesianConvictionEngine(base_win_rate=0.60, threshold=90.0)
         print(eng.process_signals(mock)[
             ["timestamp", "Sureness_Score", "Actionable_Leveraged_Long"]
         ])

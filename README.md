@@ -449,9 +449,9 @@ Bullish momentum and structure meet the normal setup threshold, but BCM confirma
 
 Bearish momentum and structure satisfy the short setup conditions.
 
-### HP SHORT
+### HP SHORT (mom)
 
-A higher-priority short configuration satisfying the additional short-side criteria.
+A higher-priority **momentum-only** short (UI label: `HP SHORT (mom)`). It does **not** use BCM Sureness; it is the bearish mirror of strong raw momentum + structure, not a calibrated short-side posterior.
 
 ### No Setup
 
@@ -557,6 +557,22 @@ No Hyperliquid API key is required for the public market-data functionality.
 
 ---
 
+# Rate limits
+
+The public Hyperliquid `/info` endpoint is rate-limited. The screener retries on HTTP 429 with backoff, uses modest concurrency, and caches **1D candles for 45 minutes** to cut repeat traffic.
+
+For higher limits, point the browser at a QuickNode Hyperliquid `/info` URL **without putting the token in source**:
+
+```js
+localStorage.setItem("hl_qn_info_url", "https://YOUR.quiknode.pro/<TOKEN>/hyperliquid/hl/info")
+```
+
+`index.html` reads `localStorage.hl_qn_info_url` via `getHlInfoUrl()` and otherwise uses `https://api.hyperliquid.xyz/info`. See `.env.example` for the optional `HL_QN_INFO_URL` documentation alias (static HTML does not load `.env`).
+
+Never hardcode QuickNode (or other) tokens in the repository.
+
+---
+
 # Running Locally
 
 The primary application is a static browser application.
@@ -565,6 +581,14 @@ Clone the repository and open:
 
 ```text
 index.html
+```
+
+Python BCM engine + constant-sync tests:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+python bayesian_engine.py
 ```
 
 Alternatively, run a local HTTP server:
@@ -668,15 +692,15 @@ Those decisions remain outside the screener.
 
 ## Model Output Is Not a Guaranteed Probability
 
-A BCM Sureness of 93 does not mean:
+A BCM Sureness of 93 does **not** mean:
 
 ```text
 93% probability of profit
 ```
 
-It means that, **under the current prior, likelihood assumptions, and evidence model**, the calculated posterior reaches 93%.
+**Sureness is illustrative.** It is the posterior under a **fixed prior (0.60)** and **fixed TPR/FPR** likelihood ratios (not empirically calibrated live win-rates). It is a ranking / gate metric for promoting longs into the 90–100 band, not a promised P(win).
 
-The distinction is important.
+It means that, **under the current prior, likelihood assumptions, and evidence model**, the calculated posterior reaches 93%.
 
 The Bayesian output is only as reliable as the assumptions and empirical calibration behind it.
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Bayesian Screener</title>
-<meta name="description" content="Hyperliquid momentum screener. Scores 90–100 only with BCM Sureness ≥ 90.">
+<meta name="description" content="Hyperliquid momentum screener. Scores 90–100 only with BCM Sureness ≥ 90 (illustrative TPR/FPR, not calibrated P(win)).">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap');
 :root {
@@ -268,11 +268,11 @@ tr.jump-flash td { animation: jumpFlash 1.2s ease; }
   <span class="rg-detail">Awaiting BTC flow &amp; structure…</span>
 </div>
 <div class="legend" id="legend">
-  <b>Score</b> = momentum + attention · <b>90–100 = BCM only</b> (Sureness ≥ 90)
+  <b>Score</b> = momentum + attention · <b>90–100 = BCM only</b> (Sureness ≥ 90; illustrative TPR/FPR, not calibrated P(win))
   <button type="button" class="legend-toggle" id="legend-toggle" onclick="toggleLegend()">details</button>
   <div class="legend-body" id="legend-body" hidden>
-    Prior = HL long trigger. Evidence = DLO × CVD Proxy × Sweep → Sureness.
-    <span class="g">BCM ★ / HP LONG</span> green box · <span class="r">HP SHORT</span> red box.
+    Prior = HL long trigger. Evidence = DLO × CVD Proxy × Sweep → Sureness (illustrative / fixed TPR·FPR — not a calibrated P(win)).
+    <span class="g">BCM ★ / HP LONG</span> green box · <span class="r">HP SHORT (mom)</span> red box · momentum-only short.
     Push <b>40→80→90→100</b> (90/100 need BCM). Keyboard: press <b>?</b>
   </div>
 </div>
@@ -333,7 +333,16 @@ tr.jump-flash td { animation: jumpFlash 1.2s ease; }
 </div>
 
 <script>
-const API = "https://api.hyperliquid.xyz/info";
+const HL_INFO_PUBLIC = "https://api.hyperliquid.xyz/info";
+/** Prefer localStorage hl_qn_info_url (QuickNode /info); never hardcode tokens. Falls back to public HL. */
+function getHlInfoUrl() {
+  try {
+    const v = (localStorage.getItem("hl_qn_info_url") || "").trim();
+    if (v && /^https?:\/\//i.test(v)) return v;
+  } catch {}
+  return HL_INFO_PUBLIC;
+}
+const API = getHlInfoUrl(); // resolved at load; call getHlInfoUrl() again if URL may change mid-session
 const STABLES = new Set(["USDC","USDT","USD","DAI","FDUSD","USDE","USD1","EUR","EURC","PYUSD"]);
 const WINDOWS = [
   ["15m",0.25],["1H",1],["4H",4],["8H",8],["12H",12],["1D",24],
@@ -356,9 +365,47 @@ const OI_POLL_MS = 2*60*1000;
 const ST_ATR = 10;
 const ST_MULT = 3;
 const MIN_OI_USD = 1_000_000;
-const HP_LONG = 70;
-const HP_SHORT = 70;
-const SETUP_MIN = 55;
+const SCORING_CONFIG = {
+  HP_LONG: 70,
+  HP_SHORT: 70,
+  SETUP_MIN: 55,
+  // TF weights (scoreRow)
+  TF_WEIGHTS: { "15m": 6, "1H": 10, "4H": 18, "1D": 14, "1W": 10 },
+  ST_YES: 18,
+  ST_NO: 18,
+  OI_UP_PX_UP: 14,
+  OI_UP_PX_DOWN: 8,
+  OI_DOWN_PX_DOWN: 14,
+  OI_DOWN_PX_UP: 6,
+  RS4_THRESH: 1.5,
+  RS4_PTS: 10,
+  RS1_THRESH: 3,
+  RS1_PTS: 6,
+  STRETCH_H4: 12,
+  STRETCH_CAP: 16,
+  STRETCH_MULT: 0.8,
+  OVERSOLD_H4: -12,
+  OVERSOLD_CAP: 16,
+  OVERSOLD_MULT: 0.8,
+  STRETCH_1D: 25,
+  STRETCH_1D_CAP: 12,
+  STRETCH_1D_MULT: 0.35,
+  NEAR_FLIP_DIST: 2,
+  NEAR_FLIP_PTS: 4,
+  ST_SHALLOW_MAX: 4,
+  ST_SHALLOW_PTS: 5,
+  DAY_NTL_HIGH: 50e6,
+  DAY_NTL_HIGH_PTS: 4,
+  DAY_NTL_LOW: 5e6,
+  DAY_NTL_LOW_MULT: 0.85,
+  BTC_GATE_CAP: 25,
+  TRADFI_GATE_CAP: 20,
+  TF_BULL_TAG: 40,
+  TF_BEAR_TAG: 40,
+};
+const HP_LONG = SCORING_CONFIG.HP_LONG;
+const HP_SHORT = SCORING_CONFIG.HP_SHORT;
+const SETUP_MIN = SCORING_CONFIG.SETUP_MIN;
 
 /** Push-only alert mode: mute everything except score-ladder jumps toward ±100 */
 const ALERTS_MUTED = false; // sound + OS notify on jumps
@@ -449,7 +496,7 @@ async function apiPost(body, signal) {
   for (let i=0;i<12;i++) {
     let res;
     try {
-      res = await fetch(API, {
+      res = await fetch(getHlInfoUrl(), {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify(body),
@@ -589,12 +636,23 @@ function superTrend(candles, period=ST_ATR, mult=ST_MULT) {
   return { bullish:bull, flipPx: bull?fLb[last]:fUb[last], atr:atr[last] };
 }
 
+const CANDLE_1D_TTL_MS = 45 * 60 * 1000;
+const candleCache1d = new Map(); // coin -> { ts, candles }
+
 async function fetchCandles(coin, interval, startMs, endMs, signal) {
+  if (interval === "1d") {
+    const hit = candleCache1d.get(coin);
+    if (hit && (Date.now() - hit.ts) < CANDLE_1D_TTL_MS && Array.isArray(hit.candles)) {
+      return hit.candles;
+    }
+  }
   const data = await withTimeout(apiPost({
     type: "candleSnapshot",
     req: { coin, interval, startTime: startMs, endTime: endMs }
   }, signal), FETCH_TIMEOUT_MS, `${coin} ${interval}`);
-  return (data || []).slice().sort((a, b) => Number(a.t) - Number(b.t));
+  const candles = (data || []).slice().sort((a, b) => Number(a.t) - Number(b.t));
+  if (interval === "1d") candleCache1d.set(coin, { ts: Date.now(), candles });
+  return candles;
 }
 function emaLast(vals, span) {
   if(!vals||!vals.length) return null;
@@ -994,7 +1052,9 @@ function startJumpWatcher() {
 
 
 /* ===== Bayesian Conviction Multiplier (BCM) =====
- * Prior = HL momentum trigger. Evidence = DLO, CVD Proxy, Sweep.
+ * Prior = HL momentum trigger. Evidence = DLO, CVD Proxy, Sweep
+ * (evidence disjoint from prior ST/4H). Sureness uses fixed TPR/FPR
+ * (illustrative — not a calibrated P(win)).
  * Display scores in 90–100 ONLY when Sureness >= 90.
  */
 const BCM_PRIOR = 0.60;
@@ -1002,15 +1062,20 @@ const BCM_THRESHOLD = 90.0;
 const BCM_METRICS = {
   dlo_alignment:   { tpr: 0.75, fpr: 0.30 }, // LR 2.5
   cvd_divergence:  { tpr: 0.60, fpr: 0.20 }, // LR 3.0
-  liquidity_sweep: { tpr: 0.50, fpr: 0.25 }, // LR 2.0
+  // Rebalanced: tpr 0.60 / fpr 0.25 → LR 2.4. With prior 0.60, yes-only
+  // two-of-three combos (DLO+CVD, DLO+Sweep, CVD+Sweep) all clear Sureness 90
+  // under sparse evidence (inactive layer LR=1).
+  liquidity_sweep: { tpr: 0.60, fpr: 0.25 }, // LR 2.4
 };
 const MOM_CAP_WITHOUT_BCM = 89; // cannot print 90–100 without BCM clearance
 
 function bcmLikelihoodRatio(metricName, conditionMet) {
   const stats = BCM_METRICS[metricName];
   if (!stats) return 1.0;
-  if (conditionMet) return stats.tpr / stats.fpr;
-  return (1.0 - stats.tpr) / (1.0 - stats.fpr);
+  // Sparse evidence: inactive layer is uninformative (LR=1), not a negative update.
+  // "No sweep detected" ≠ "sweep test failed" for screening purposes.
+  if (!conditionMet) return 1.0;
+  return stats.tpr / stats.fpr;
 }
 
 function bcmEvaluate(hlSignal, dloActive, cvdActive, sweepActive) {
@@ -1027,11 +1092,12 @@ function bcmEvaluate(hlSignal, dloActive, cvdActive, sweepActive) {
 }
 
 /**
- * HL-native proxies for the three BCM evidence layers
- * (true DLO/CVD feeds can replace these later without changing the updater).
- *  DLO   — BTC regime supportive + asset 4H SuperTrend + 4H/1D aligned up
- *  CVD Proxy — OI rising with price (aggressive long flow / absorption proxy; not true CVD)
- *  Sweep — recent 15m stop-run: wick below prior lows then close reclaim
+ * HL-native proxies for the three BCM evidence layers.
+ * Evidence is deliberately DISJOINT from the prior in applyBcm
+ * (prior already requires stYes===true and 4H>0). Do NOT re-test ST/4H here.
+ *  DLO   — regime + 1D (>=0) only (no stYes, no 4H>0)
+ *  CVD Proxy — oiDir==='up' + optional premium<0.0025 (no 4H>0)
+ *  Sweep — unchanged: recent 15m stop-run + reclaim
  */
 function detectLiquiditySweep(candles15) {
   if (!candles15 || candles15.length < 8) return false;
@@ -1053,20 +1119,17 @@ function detectLiquiditySweep(candles15) {
 }
 
 function computeBcmEvidence(row) {
-  const h4 = row["4H"];
+  // Evidence must stay disjoint from prior ST/4H (see applyBcm hlSignal).
   const h1d = row["1D"];
   const regimeOk = btcRegime.kind === "alts" || btcRegime.kind === "mixed" || isBtc(row);
   const dlo =
-    !!row.stYes &&
-    Number.isFinite(h4) && h4 > 0 &&
     Number.isFinite(h1d) && h1d >= 0 &&
     regimeOk &&
     btcRegime.kind !== "trad";
 
-  // CVD proxy: aggressive longs — OI↑ with price↑ (and optional rich-not-extreme premium)
+  // CVD proxy: OI↑ (optional: premium not extremely rich). No 4H>0 — that is prior.
   const cvd =
     row.oiDir === "up" &&
-    Number.isFinite(h4) && h4 > 0 &&
     (!Number.isFinite(row.premium) || row.premium < 0.0025);
 
   const sweep = !!row.sweepFlag;
@@ -1127,58 +1190,59 @@ function scoreRow(row) {
     row.score=null; row.side=null; row.setup=null; row.hp=false; row.why=[];
     return;
   }
+  const C = SCORING_CONFIG;
   let score=0;
   const why=[];
-  const tfs=[["15m",6],["1H",10],["4H",18],["1D",14],["1W",10]];
+  const tfs=Object.entries(C.TF_WEIGHTS);
   let bull=0, bear=0;
   for (const [tf,w] of tfs) {
     const s=signPct(row[tf]);
     if (s===0) continue;
     if (s>0){ bull+=w; score+=w; } else { bear+=w; score-=w; }
   }
-  if (bull>=40) why.push("TF↑");
-  if (bear>=40) why.push("TF↓");
+  if (bull>=C.TF_BULL_TAG) why.push("TF↑");
+  if (bear>=C.TF_BEAR_TAG) why.push("TF↓");
 
-  if (row.stYes) { score+=18; why.push("ST↑"); }
-  else { score-=18; why.push("ST↓"); }
+  if (row.stYes) { score+=C.ST_YES; why.push("ST↑"); }
+  else { score-=C.ST_NO; why.push("ST↓"); }
 
   const h4=row["4H"];
   if (row.oiDir==="up") {
-    if (h4>0){ score+=14; why.push("OI↑+px↑"); }
-    else if (h4<0){ score-=8; why.push("OI↑ dump"); }
+    if (h4>0){ score+=C.OI_UP_PX_UP; why.push("OI↑+px↑"); }
+    else if (h4<0){ score-=C.OI_UP_PX_DOWN; why.push("OI↑ dump"); }
   } else if (row.oiDir==="down") {
-    if (h4<0){ score-=14; why.push("OI↓+px↓"); }
-    else if (h4>0){ score-=6; why.push("OI↓ rally"); }
+    if (h4<0){ score-=C.OI_DOWN_PX_DOWN; why.push("OI↓+px↓"); }
+    else if (h4>0){ score-=C.OI_DOWN_PX_UP; why.push("OI↓ rally"); }
   }
 
   if (!isBtc(row) && btcRow && Number.isFinite(btcRow["4H"]) && Number.isFinite(h4)) {
     const rs4 = h4 - btcRow["4H"];
     const rs1 = (Number.isFinite(row["1D"])&&Number.isFinite(btcRow["1D"])) ? row["1D"]-btcRow["1D"] : 0;
-    if (rs4>1.5){ score+=10; why.push("RS+"); }
-    else if (rs4<-1.5){ score-=10; why.push("RS−"); }
-    if (rs1>3) score+=6; else if (rs1<-3) score-=6;
+    if (rs4>C.RS4_THRESH){ score+=C.RS4_PTS; why.push("RS+"); }
+    else if (rs4<-C.RS4_THRESH){ score-=C.RS4_PTS; why.push("RS−"); }
+    if (rs1>C.RS1_THRESH) score+=C.RS1_PTS; else if (rs1<-C.RS1_THRESH) score-=C.RS1_PTS;
   }
 
   if (Number.isFinite(h4)) {
-    if (h4>12){ score-=Math.min(16,(h4-12)*0.8); why.push("stretched"); }
-    if (h4<-12){ score+=Math.min(16,(-h4-12)*0.8); why.push("oversold"); }
+    if (h4>C.STRETCH_H4){ score-=Math.min(C.STRETCH_CAP,(h4-C.STRETCH_H4)*C.STRETCH_MULT); why.push("stretched"); }
+    if (h4<C.OVERSOLD_H4){ score+=Math.min(C.OVERSOLD_CAP,(-h4+C.OVERSOLD_H4)*C.OVERSOLD_MULT); why.push("oversold"); }
   }
   const h1d=row["1D"];
   if (Number.isFinite(h1d)) {
-    if (h1d>25) score-=Math.min(12,(h1d-25)*0.35);
-    if (h1d<-25) score+=Math.min(12,(-h1d-25)*0.35);
+    if (h1d>C.STRETCH_1D) score-=Math.min(C.STRETCH_1D_CAP,(h1d-C.STRETCH_1D)*C.STRETCH_1D_MULT);
+    if (h1d<-C.STRETCH_1D) score+=Math.min(C.STRETCH_1D_CAP,(-h1d-C.STRETCH_1D)*C.STRETCH_1D_MULT);
   }
 
-  if (!row.stYes && Number.isFinite(row.stDist) && row.stDist>0 && row.stDist<2) {
-    score+=4; why.push("near flip");
+  if (!row.stYes && Number.isFinite(row.stDist) && row.stDist>0 && row.stDist<C.NEAR_FLIP_DIST) {
+    score+=C.NEAR_FLIP_PTS; why.push("near flip");
   }
-  if (row.stYes && Number.isFinite(h4) && h4>0 && h4<4) {
-    score+=5; why.push("ST shallow");
+  if (row.stYes && Number.isFinite(h4) && h4>0 && h4<C.ST_SHALLOW_MAX) {
+    score+=C.ST_SHALLOW_PTS; why.push("ST shallow");
   }
 
   if (Number.isFinite(row.dayNtl)) {
-    if (row.dayNtl>=50e6) score += (score>=0?4:-4);
-    else if (row.dayNtl<5e6) score *= 0.85;
+    if (row.dayNtl>=C.DAY_NTL_HIGH) score += (score>=0?C.DAY_NTL_HIGH_PTS:-C.DAY_NTL_HIGH_PTS);
+    else if (row.dayNtl<C.DAY_NTL_LOW) score *= C.DAY_NTL_LOW_MULT;
   }
 
   // Attention: separates peers with similar TA by mindshare / crowding
@@ -1192,9 +1256,9 @@ function scoreRow(row) {
 
   let blocked=false;
   if (!isBtc(row) && row.section!=="tradfi" && btcRegime.kind==="trad") {
-    if (score>0){ score=Math.min(score,25); blocked=true; why.push("BTC↓ gate"); }
+    if (score>0){ score=Math.min(score,C.BTC_GATE_CAP); blocked=true; why.push("BTC↓ gate"); }
   }
-  if (row.section==="tradfi" && btcRegime.kind==="trad" && score>0) score=Math.min(score,20);
+  if (row.section==="tradfi" && btcRegime.kind==="trad" && score>0) score=Math.min(score,C.TRADFI_GATE_CAP);
 
   score = Math.max(-100, Math.min(100, Math.round(score)));
   row.why = why;
@@ -1209,7 +1273,7 @@ function scoreRow(row) {
     // Actionable leveraged long — Sureness >= 90
     row.side="LONG"; row.setup="BCM ★"+Math.round(row.sureness); row.hp=true;
   } else if (score<=-HP_SHORT && !row.stYes && h4<0 && (row.oiDir==="down"||row.oiDir==="up")) {
-    row.side="SHORT"; row.setup="HP SHORT"; row.hp=true;
+    row.side="SHORT"; row.setup="HP SHORT (mom)"; row.hp=true;
   } else if (score>=SETUP_MIN && row.stYes && h4>0) {
     row.side="LONG"; row.setup="LONG"; row.hp=false;
   } else if (score<=-SETUP_MIN && !row.stYes && h4<0) {
@@ -1242,7 +1306,7 @@ function setupCell(row) {
     return {cls:"setup hp",text: row.setup.startsWith("BCM")?row.setup:("BCM ★"+Math.round(row.sureness||0)), v:5};
   }
   if (row.setup==="HP LONG") return {cls:"setup hp",text:"★ HP LONG",v:4};
-  if (row.setup==="HP SHORT") return {cls:"setup shorthp",text:"★ HP SHORT",v:3};
+  if (row.setup==="HP SHORT" || row.setup==="HP SHORT (mom)") return {cls:"setup shorthp",text:"★ HP SHORT (mom)",v:3};
   if (row.setup==="LONG") return {cls:"setup ok",text:"LONG",v:2};
   if (row.setup==="SHORT") return {cls:"setup shortok",text:"SHORT",v:1};
   return {cls:"setup no",text:row.setup,v:0};
@@ -1638,7 +1702,7 @@ async function reloadAll() {
     const hpL=rows.filter(r=>r.hp&&r.side==="LONG").length;
     const hpS=rows.filter(r=>r.hp&&r.side==="SHORT").length;
     const rg=btcRegime.kind==="trad"?"CONTRACTING":btcRegime.kind==="alts"?"EXPANDING":btcRegime.kind==="mixed"?"MIXED":"SCANNING";
-    setStatus(`Done · ${crypto.length}+${tradfi.length} · ${rg} · ★${hpL} HP LONG / ★${hpS} HP SHORT · ${oiCacheStatus(nowMs)}`);
+    setStatus(`Done · ${crypto.length}+${tradfi.length} · ${rg} · ★${hpL} HP LONG / ★${hpS} HP SHORT (mom) · ${oiCacheStatus(nowMs)}`);
     checkAllScoreJumps();
     startOiPoller();
     startJumpWatcher();

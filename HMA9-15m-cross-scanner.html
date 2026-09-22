@@ -79,7 +79,15 @@
 </div>
 <script>
 (() => {
-  const HL_INFO = "https://api.hyperliquid.xyz/info";
+  const HL_INFO_PUBLIC = "https://api.hyperliquid.xyz/info";
+  function getHlInfoUrl() {
+    try {
+      const v = (localStorage.getItem("hl_qn_info_url") || "").trim();
+      if (v && /^https?:\/\//i.test(v)) return v;
+    } catch {}
+    return HL_INFO_PUBLIC;
+  }
+  const HL_INFO = getHlInfoUrl();
   const WATCH = new Set(["LIT"]); // Lighter
   const HMA_LEN = 9;
   const ARM_PCT = 0.35; // within 0.35% below HMA counts as ARMING
@@ -107,10 +115,31 @@
     el.className = isErr ? "err" : "";
   }
 
-  function logAlert(html) {
+  const LOG_CAP = 200;
+  function logAlert(msg) {
     const el = document.getElementById("log");
     const t = new Date().toLocaleTimeString("en-US", { hour12: false, timeZone: "America/New_York" }) + " ET";
-    el.innerHTML = `<div>[${t}] ${html}</div>` + el.innerHTML;
+    const line = document.createElement("div");
+    if (typeof msg === "string") {
+      line.textContent = `[${t}] ${msg}`;
+    } else if (msg && typeof msg === "object") {
+      line.appendChild(document.createTextNode(`[${t}] `));
+      if (msg.coin) {
+        const b = document.createElement("b");
+        b.className = "up";
+        b.textContent = String(msg.coin);
+        line.appendChild(b);
+        line.appendChild(document.createTextNode(" " + String(msg.rest || "")));
+      } else {
+        line.appendChild(document.createTextNode(String(msg.text || "")));
+      }
+    } else {
+      line.textContent = `[${t}]`;
+    }
+    el.prepend(line); // newest first
+    // Cap alert <div>s at 200 (non-div header nodes untouched)
+    const divs = el.querySelectorAll(":scope > div");
+    for (let i = divs.length - 1; i >= LOG_CAP; i--) divs[i].remove();
   }
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -119,7 +148,7 @@
     for (let i = 0; i < 6; i++) {
       let res;
       try {
-        res = await fetch(HL_INFO, {
+        res = await fetch(getHlInfoUrl(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -341,7 +370,7 @@
       keys.sort((a, b) => hist[a] - hist[b]).slice(0, keys.length - 300).forEach(k => delete hist[k]);
     }
     saveHist();
-    logAlert(`<b class="up">${row.coin}</b> ${row.signal} · mid ${fmt(row.mid)} · HMA ${fmt(row.hma)} · ${fmtPct(row.dist)}`);
+    logAlert({ coin: row.coin, rest: `${row.signal} · mid ${fmt(row.mid)} · HMA ${fmt(row.hma)} · ${fmtPct(row.dist)}` });
     notify(`▲ ${row.coin} × 9-HMA`, `${row.coin} crossed ABOVE 9-HMA (15m). Mid ${fmt(row.mid)} · HMA ${fmt(row.hma)}`);
   }
 
@@ -366,30 +395,51 @@
     });
 
     const tb = document.getElementById("tbody");
-    tb.innerHTML = "";
+    tb.textContent = "";
     list.forEach((r, idx) => {
       const tr = document.createElement("tr");
       if (r.state === "fire") tr.classList.add("fire");
       if (r.state === "arm") tr.classList.add("arm");
       if (WATCH.has(r.coin)) tr.classList.add("watch");
-      const pill =
-        r.state === "fire" ? `<span class="pill fire">FIRE</span>` :
-        r.state === "arm" ? `<span class="pill arm">ARM</span>` :
-        r.state === "above" ? `<span class="pill above">above</span>` :
-        r.state === "below" ? `<span class="pill below">below</span>` :
-        `<span class="pill muted">n/a</span>`;
-      const distCls = (r.dist || 0) >= 0 ? "up" : "down";
-      tr.innerHTML = `
-        <td class="muted">${idx + 1}</td>
-        <td><b>${r.coin}</b>${WATCH.has(r.coin) ? ' · <span class="muted">Lighter</span>' : ""}</td>
-        <td>${fmt(r.mid)}</td>
-        <td>${fmt(r.hma)}</td>
-        <td class="${distCls}">${fmtPct(r.dist)}</td>
-        <td>${pill}</td>
-        <td>${fmt(r.prevClose)}</td>
-        <td>${r.signal}</td>
-        <td class="${(r.ch15 || 0) >= 0 ? "up" : "down"}">${fmtPct(r.ch15)}</td>
-        <td>${fmtUsd(r.oiUsd)}</td>`;
+
+      function td(text, cls) {
+        const c = document.createElement("td");
+        if (cls) c.className = cls;
+        c.textContent = text == null ? "" : String(text);
+        return c;
+      }
+      function pillEl(state) {
+        const span = document.createElement("span");
+        const map = { fire: ["pill fire", "FIRE"], arm: ["pill arm", "ARM"], above: ["pill above", "above"], below: ["pill below", "below"] };
+        const [cls, lab] = map[state] || ["pill muted", "n/a"];
+        span.className = cls;
+        span.textContent = lab;
+        return span;
+      }
+
+      tr.appendChild(td(idx + 1, "muted"));
+      const coinTd = document.createElement("td");
+      const b = document.createElement("b");
+      b.textContent = r.coin;
+      coinTd.appendChild(b);
+      if (WATCH.has(r.coin)) {
+        coinTd.appendChild(document.createTextNode(" · "));
+        const m = document.createElement("span");
+        m.className = "muted";
+        m.textContent = "Lighter";
+        coinTd.appendChild(m);
+      }
+      tr.appendChild(coinTd);
+      tr.appendChild(td(fmt(r.mid)));
+      tr.appendChild(td(fmt(r.hma)));
+      tr.appendChild(td(fmtPct(r.dist), (r.dist || 0) >= 0 ? "up" : "down"));
+      const pillTd = document.createElement("td");
+      pillTd.appendChild(pillEl(r.state));
+      tr.appendChild(pillTd);
+      tr.appendChild(td(fmt(r.prevClose)));
+      tr.appendChild(td(r.signal));
+      tr.appendChild(td(fmtPct(r.ch15), (r.ch15 || 0) >= 0 ? "up" : "down"));
+      tr.appendChild(td(fmtUsd(r.oiUsd)));
       tb.appendChild(tr);
     });
   };
