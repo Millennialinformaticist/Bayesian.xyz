@@ -271,7 +271,7 @@ tr.jump-flash td { animation: jumpFlash 1.2s ease; }
   <b>Score</b> = momentum + attention · <b>90–100 = BCM only</b> (Sureness ≥ 90)
   <button type="button" class="legend-toggle" id="legend-toggle" onclick="toggleLegend()">details</button>
   <div class="legend-body" id="legend-body" hidden>
-    Prior = HL long trigger. Evidence = DLO × CVD × Sweep → Sureness.
+    Prior = HL long trigger. Evidence = DLO × CVD Proxy × Sweep → Sureness.
     <span class="g">BCM ★ / HP LONG</span> green box · <span class="r">HP SHORT</span> red box.
     Push <b>40→80→90→100</b> (90/100 need BCM). Keyboard: press <b>?</b>
   </div>
@@ -994,7 +994,7 @@ function startJumpWatcher() {
 
 
 /* ===== Bayesian Conviction Multiplier (BCM) =====
- * Prior = HL momentum trigger. Evidence = DLO, CVD, Sweep.
+ * Prior = HL momentum trigger. Evidence = DLO, CVD Proxy, Sweep.
  * Display scores in 90–100 ONLY when Sureness >= 90.
  */
 const BCM_PRIOR = 0.60;
@@ -1030,7 +1030,7 @@ function bcmEvaluate(hlSignal, dloActive, cvdActive, sweepActive) {
  * HL-native proxies for the three BCM evidence layers
  * (true DLO/CVD feeds can replace these later without changing the updater).
  *  DLO   — BTC regime supportive + asset 4H SuperTrend + 4H/1D aligned up
- *  CVD   — OI rising with price (aggressive long flow / absorption proxy)
+ *  CVD Proxy — OI rising with price (aggressive long flow / absorption proxy; not true CVD)
  *  Sweep — recent 15m stop-run: wick below prior lows then close reclaim
  */
 function detectLiquiditySweep(candles15) {
@@ -1098,7 +1098,7 @@ function applyBcm(row, rawMomScore) {
     row.why.push(
       `BCM ${row.sureness}`,
       ev.dlo ? "DLO✓" : "DLO✗",
-      ev.cvd ? "CVD✓" : "CVD✗",
+      ev.cvd ? "CVD Proxy✓" : "CVD Proxy✗",
       ev.sweep ? "Sweep✓" : "Sweep✗"
     );
   } else {
@@ -1113,7 +1113,7 @@ function applyBcm(row, rawMomScore) {
       row.why.push(
         `BCM ${row.sureness}`,
         ev.dlo ? "DLO✓" : "DLO✗",
-        ev.cvd ? "CVD✓" : "CVD✗",
+        ev.cvd ? "CVD Proxy✓" : "CVD Proxy✗",
         ev.sweep ? "Sweep✓" : "Sweep✗"
       );
     }
@@ -1249,7 +1249,7 @@ function setupCell(row) {
 }
 function whyTitle(row) {
   const bcm = row.sureness != null
-    ? ` · Sureness ${row.sureness} (DLO ${row.bcmDlo?"Y":"N"} / CVD ${row.bcmCvd?"Y":"N"} / Sweep ${row.bcmSweep?"Y":"N"})`
+    ? ` · Sureness ${row.sureness} (DLO ${row.bcmDlo?"Y":"N"} / CVD Proxy ${row.bcmCvd?"Y":"N"} / Sweep ${row.bcmSweep?"Y":"N"})`
     : "";
   return `Score ${row.score??"?"}${bcm} · ${(row.why||[]).join(" · ")||"pending"}`;
 }

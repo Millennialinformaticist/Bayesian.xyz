@@ -1,7 +1,7 @@
 """
 BCM — Bayesian Conviction Multiplier.
 
-Prior = HL momentum long trigger. Evidence = DLO, CVD, Sweep (naive Bayes LRs).
+Prior = HL momentum long trigger. Evidence = DLO, CVD Proxy, Sweep (naive Bayes LRs).
 Sureness 0–100; >= 90 → Actionable_Leveraged_Long.
 Browser screener: display scores 90–100 only when Sureness clears 90.
 """
