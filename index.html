@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Bayesian Screener</title>
-<meta name="description" content="Hyperliquid momentum screener. Scores 90–100 only with BCM Sureness ≥ 90 (illustrative TPR/FPR, not calibrated P(win)).">
+<meta name="description" content="Hyperliquid bullish-momentum screener. HL-tradable assets with bullish momentum. BCM gates 90–100.">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap');
 :root {
@@ -197,11 +197,8 @@ tr.section-div td {
 }
 tr.section-div.trad-focus td { color: var(--down); }
 tr.section-div:hover td { background: var(--s-raised) !important; }
-.attn.hot { color: var(--accent); font-weight: 700; }
 .attn.warm { color: var(--attn); font-weight: 600; }
-.attn.cold { color: var(--ink-2); }
 .attn.pending { color: var(--ink-3); }
-.heat.yes { color: var(--accent); font-weight: 700; }
 .heat.no { color: var(--ink-3); }
 .fund.pos { color: var(--down); font-weight: 600; }
 .fund.neg { color: var(--up); font-weight: 600; }
@@ -262,33 +259,33 @@ tr.jump-flash td { animation: jumpFlash 1.2s ease; }
 </head>
 <body>
 <h1>Bayesian Screener</h1>
-<p class="meta" id="meta">Loading… · HL momentum · BCM gates 90–100</p>
+<p class="meta" id="meta">Loading… · HL bullish momentum · BCM gates 90–100</p>
 <div id="btc-regime" class="pending">
   <span class="rg-label">LIQUIDITY · SCANNING</span>
   <span class="rg-detail">Awaiting BTC flow &amp; structure…</span>
 </div>
 <div class="legend" id="legend">
-  <b>Score</b> = momentum + attention · <b>90–100 = BCM only</b> (Sureness ≥ 90; illustrative TPR/FPR, not calibrated P(win))
+  <b>Score</b> = multi-TF momentum + OI/ST structure · <b>90–100 = BCM only</b> (Sureness ≥ 90)
   <button type="button" class="legend-toggle" id="legend-toggle" onclick="toggleLegend()">details</button>
   <div class="legend-body" id="legend-body" hidden>
-    Prior = HL long trigger. Evidence = DLO × CVD Proxy × Sweep → Sureness (illustrative / fixed TPR·FPR — not a calibrated P(win)).
-    <span class="g">BCM ★ / HP LONG</span> green box · <span class="r">HP SHORT (mom)</span> red box · momentum-only short.
-    Push <b>40→80→90→100</b> (90/100 need BCM). Keyboard: press <b>?</b>
+    Prior = HL long trigger. Evidence = DLO × CVD × Sweep → Sureness.
+    <span class="g">BCM ★ / HP LONG</span> green box · <span class="r">HP SHORT</span> red box.
+    Alerts: <b>long/short → HP (±70)</b> only. Keyboard: press <b>?</b>
   </div>
 </div>
 <div class="toolbar">
   <input id="q" placeholder="Filter: BTC, ETH, SOL…" oninput="filt()"/>
   <select id="view" onchange="filt()">
-    <option value="all" selected>All</option>
+    <option value="all">All</option>
     <option value="hp">HP only</option>
-    <option value="longs">Longs</option>
+    <option value="longs" selected>Longs</option>
     <option value="shorts">Shorts</option>
     <option value="setups">Any setup</option>
   </select>
   <button type="button" onclick="reloadAll()">Refresh now</button>
   <button type="button" id="btn-push" onclick="enablePush()">Enable score-jump push</button>
   <span class="status" id="status"></span>
-  <span class="hint" id="push-hint">Jump sound ON · push banner optional · 40→80→90→100 (90/100 = BCM)</span>
+  <span class="hint" id="push-hint">Jump sound ON · push optional · only long/short → HP (±70)</span>
 </div>
 <div class="wrap">
 <table id="t">
@@ -333,27 +330,30 @@ tr.jump-flash td { animation: jumpFlash 1.2s ease; }
 </div>
 
 <script>
-const HL_INFO_PUBLIC = "https://api.hyperliquid.xyz/info";
-/** Prefer localStorage hl_qn_info_url (QuickNode /info); never hardcode tokens. Falls back to public HL. */
-function getHlInfoUrl() {
+const HL_INFO_DEFAULT = "https://api.hyperliquid.xyz/info";
+const QN_INFO_DEFAULT = (localStorage.getItem("hl_qn_info_url") || "").replace(/\/$/, ""); // set locally — never commit tokens
+// One-time: if sticky localStorage still points at QN (429s), clear so public is default
+(function() {
   try {
-    const v = (localStorage.getItem("hl_qn_info_url") || "").trim();
-    if (v && /^https?:\/\//i.test(v)) return v;
+    const u = localStorage.getItem("hl_info_url");
+    if (u && (u.includes("quiknode") || u.includes("quicknode"))) {
+      localStorage.removeItem("hl_info_url");
+      console.info("[hl feed] cleared sticky QN hl_info_url → public default");
+    }
   } catch {}
-  return HL_INFO_PUBLIC;
-}
-const API = getHlInfoUrl(); // resolved at load; call getHlInfoUrl() again if URL may change mid-session
+})();
+const API = (localStorage.getItem("hl_info_url") || HL_INFO_DEFAULT).replace(/\/$/, "");
+// Optional QN: localStorage.setItem("hl_info_url", QN_INFO_DEFAULT) — public is default; apiPost falls back on 429
 const STABLES = new Set(["USDC","USDT","USD","DAI","FDUSD","USDE","USD1","EUR","EURC","PYUSD"]);
 const WINDOWS = [
   ["15m",0.25],["1H",1],["4H",4],["8H",8],["12H",12],["1D",24],
   ["3D",72],["1W",168],["2W",336],["1M",720],["3M",2160]
 ];
 const COLS = WINDOWS.map(w => w[0]);
-const HEADERS = ["#","Coin","Mid","OI $","OI Δ 15m","SuperTrend?","ST Dist%","Fund%","Prem","RVol","Heat","Attn","Side","Score","Setup","24h Ntl", ...COLS];
-const TYPES = ["num","str","num","num","num","str","num","num","num","num","num","num","num","num","num","num", ...COLS.map(() => "num")];
+const HEADERS = ["#","Coin","Mid","OI $","OI Δ 15m","SuperTrend?","ST Dist%","Fund%","Prem","RVol","Side","Score","Setup","24h Ntl", ...COLS];
+const TYPES = ["num","str","num","num","num","str","num","num","num","num","num","num","num","num", ...COLS.map(() => "num")];
 /** Column indices after attention fields */
-const COL = { side:12, score:13, setup:14, dayNtl:15 };
-let trendingHeat = new Map(); // symbol -> rank 1..15 (1 = hottest)
+const COL = { side:10, score:11, setup:12, dayNtl:13 };
 let medianDayNtl = 0;
 const CONCURRENCY = 3;
 const FETCH_TIMEOUT_MS = 12000;
@@ -365,54 +365,16 @@ const OI_POLL_MS = 2*60*1000;
 const ST_ATR = 10;
 const ST_MULT = 3;
 const MIN_OI_USD = 1_000_000;
-const SCORING_CONFIG = {
-  HP_LONG: 70,
-  HP_SHORT: 70,
-  SETUP_MIN: 55,
-  // TF weights (scoreRow)
-  TF_WEIGHTS: { "15m": 6, "1H": 10, "4H": 18, "1D": 14, "1W": 10 },
-  ST_YES: 18,
-  ST_NO: 18,
-  OI_UP_PX_UP: 14,
-  OI_UP_PX_DOWN: 8,
-  OI_DOWN_PX_DOWN: 14,
-  OI_DOWN_PX_UP: 6,
-  RS4_THRESH: 1.5,
-  RS4_PTS: 10,
-  RS1_THRESH: 3,
-  RS1_PTS: 6,
-  STRETCH_H4: 12,
-  STRETCH_CAP: 16,
-  STRETCH_MULT: 0.8,
-  OVERSOLD_H4: -12,
-  OVERSOLD_CAP: 16,
-  OVERSOLD_MULT: 0.8,
-  STRETCH_1D: 25,
-  STRETCH_1D_CAP: 12,
-  STRETCH_1D_MULT: 0.35,
-  NEAR_FLIP_DIST: 2,
-  NEAR_FLIP_PTS: 4,
-  ST_SHALLOW_MAX: 4,
-  ST_SHALLOW_PTS: 5,
-  DAY_NTL_HIGH: 50e6,
-  DAY_NTL_HIGH_PTS: 4,
-  DAY_NTL_LOW: 5e6,
-  DAY_NTL_LOW_MULT: 0.85,
-  BTC_GATE_CAP: 25,
-  TRADFI_GATE_CAP: 20,
-  TF_BULL_TAG: 40,
-  TF_BEAR_TAG: 40,
-};
-const HP_LONG = SCORING_CONFIG.HP_LONG;
-const HP_SHORT = SCORING_CONFIG.HP_SHORT;
-const SETUP_MIN = SCORING_CONFIG.SETUP_MIN;
+const HP_LONG = 70;
+const HP_SHORT = 70;
+const SETUP_MIN = 55;
 
-/** Push-only alert mode: mute everything except score-ladder jumps toward ±100 */
-const ALERTS_MUTED = false; // sound + OS notify on jumps
-const SCORE_HIST_KEY = "hl_momentum_score_hist_v1";
-const JUMP_LADDER_LONG = [40, 80, 90, 100]; // 90/100 require BCM sureness clearance
-const JUMP_LADDER_SHORT = [-40, -80, -100];
-const JUMP_MIN_DELTA = 15;                // also fire on big jumps into ≥40 / ≤−40
+/** Push-only alert mode: mute everything except long/short → HP (±70) */
+const ALERTS_MUTED = false; // sound + OS notify on HP entry
+const SCORE_HIST_KEY = "hl_momentum_score_hist_v3"; // enter-HP only
+const JUMP_LADDER_LONG = [];
+const JUMP_LADDER_SHORT = [];
+const JUMP_MIN_DELTA = 9999;              // ladder jumps disabled — HP-enter only
 const RESCORE_MS = 5 * 60 * 1000;         // full momentum rescore so jumps can appear
 const PERFECT_LONG = 100;
 const PERFECT_SHORT = -100;
@@ -493,31 +455,46 @@ function withTimeout(promise, ms, label) {
   return Promise.race([promise, killer]).finally(() => clearTimeout(to));
 }
 async function apiPost(body, signal) {
-  for (let i=0;i<12;i++) {
-    let res;
-    try {
-      res = await fetch(getHlInfoUrl(), {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify(body),
-        signal
-      });
-    } catch(e) {
-      if (e.name === "AbortError") throw e;
-      await sleep(1000 + i*500);
-      continue;
+  const primary = (localStorage.getItem("hl_info_url") || HL_INFO_DEFAULT).replace(/\/$/, "");
+  const secondary = primary === HL_INFO_DEFAULT.replace(/\/$/, "")
+    ? QN_INFO_DEFAULT.replace(/\/$/, "")
+    : HL_INFO_DEFAULT.replace(/\/$/, "");
+  const endpoints = [primary];
+  if (secondary && secondary !== primary) endpoints.push(secondary);
+
+  let lastErr = null;
+  for (const endpoint of endpoints) {
+    for (let i = 0; i < 6; i++) {
+      let res;
+      try {
+        res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal
+        });
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
+        lastErr = e;
+        await sleep(800 + i * 400);
+        continue;
+      }
+      if (res.status === 429) {
+        // rate-limited — try next endpoint instead of hammering
+        lastErr = new Error("HTTP 429 @ " + (endpoint.includes("quiknode") || endpoint.includes("quicknode") ? "qn" : "public"));
+        break;
+      }
+      if (res.status >= 500) { await sleep(1000 + i * 600); continue; }
+      if (!res.ok) { lastErr = new Error("HTTP " + res.status); break; }
+      if (endpoint !== primary) {
+        try { console.info("[hl feed] fallback →", endpoint.includes("quiknode") || endpoint.includes("quicknode") ? "qn" : "public"); } catch {}
+      }
+      return res.json();
     }
-    if (res.status === 429) {
-      const ra = Number(res.headers.get("Retry-After"));
-      await sleep(((Number.isFinite(ra)?ra:8)+i*2)*1000);
-      continue;
-    }
-    if (res.status >= 500) { await sleep(1000+i*800); continue; }
-    if (!res.ok) throw new Error("HTTP "+res.status);
-    return res.json();
   }
-  throw new Error("retries exhausted");
+  throw lastErr || new Error("retries exhausted");
 }
+
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
 function pctChange(now, then) {
@@ -636,23 +613,12 @@ function superTrend(candles, period=ST_ATR, mult=ST_MULT) {
   return { bullish:bull, flipPx: bull?fLb[last]:fUb[last], atr:atr[last] };
 }
 
-const CANDLE_1D_TTL_MS = 45 * 60 * 1000;
-const candleCache1d = new Map(); // coin -> { ts, candles }
-
 async function fetchCandles(coin, interval, startMs, endMs, signal) {
-  if (interval === "1d") {
-    const hit = candleCache1d.get(coin);
-    if (hit && (Date.now() - hit.ts) < CANDLE_1D_TTL_MS && Array.isArray(hit.candles)) {
-      return hit.candles;
-    }
-  }
   const data = await withTimeout(apiPost({
     type: "candleSnapshot",
     req: { coin, interval, startTime: startMs, endTime: endMs }
   }, signal), FETCH_TIMEOUT_MS, `${coin} ${interval}`);
-  const candles = (data || []).slice().sort((a, b) => Number(a.t) - Number(b.t));
-  if (interval === "1d") candleCache1d.set(coin, { ts: Date.now(), candles });
-  return candles;
+  return (data || []).slice().sort((a, b) => Number(a.t) - Number(b.t));
 }
 function emaLast(vals, span) {
   if(!vals||!vals.length) return null;
@@ -723,31 +689,6 @@ function signPct(v) {
 
 /** Momentum conviction −100…+100 */
 
-async function fetchTrendingHeat(signal) {
-  trendingHeat = new Map();
-  const ctrl = new AbortController();
-  const onAbort = () => ctrl.abort();
-  if (signal) {
-    if (signal.aborted) return;
-    signal.addEventListener("abort", onAbort, { once: true });
-  }
-  const timer = setTimeout(() => ctrl.abort(), 2500);
-  try {
-    const res = await fetch("https://api.coingecko.com/api/v3/search/trending", { signal: ctrl.signal });
-    if (!res.ok) return;
-    const data = await res.json();
-    const coins = data.coins || [];
-    coins.forEach((c, i) => {
-      const sym = String(c.item?.symbol || "").toUpperCase();
-      if (sym) trendingHeat.set(sym, i + 1); // 1 = hottest
-    });
-  } catch (e) {
-    if (e.name !== "AbortError") console.warn("CG trending failed", e);
-  } finally {
-    clearTimeout(timer);
-    if (signal) signal.removeEventListener("abort", onAbort);
-  }
-}
 
 function applyAttentionFields() {
   const vols = rows.map(r => r.dayNtl).filter(Number.isFinite).sort((a,b)=>a-b);
@@ -755,8 +696,6 @@ function applyAttentionFields() {
   for (const r of rows) {
     if (r.section === "divider") continue;
     r.relVol = (Number.isFinite(r.dayNtl) && medianDayNtl > 0) ? r.dayNtl / medianDayNtl : null;
-    const sym = bare(r.display || r.coin).toUpperCase();
-    r.heatRank = trendingHeat.has(sym) ? trendingHeat.get(sym) : null;
   }
 }
 
@@ -785,11 +724,6 @@ function attentionScore(row) {
     else if (row.relVol < 0.4) { a -= 4; bits.push("quiet"); }
   }
   // CoinGecko search heat (Google-search-like retail attention proxy)
-  if (row.heatRank != null) {
-    const boost = Math.max(2, 12 - (row.heatRank - 1)); // rank1=+12 … rank11=+2
-    a += boost;
-    bits.push("CG#" + row.heatRank);
-  }
   a = Math.max(-20, Math.min(20, Math.round(a)));
   row.attn = a;
   return { a, bits };
@@ -813,16 +747,6 @@ function rvolCell(row) {
   const cls = v>=2?"rvol hot":v>=1?"rvol ok":"rvol cold";
   return {cls, text:v.toFixed(2)+"×", v};
 }
-function heatCell(row) {
-  if (row.heatRank == null) return {cls:"heat no",text:"—",v:""};
-  return {cls:"heat yes", text:"#"+row.heatRank, v: 16-row.heatRank};
-}
-function attnCell(row) {
-  if (row.attn==null||!Number.isFinite(row.attn)) return {cls:"attn pending",text:"…",v:""};
-  const a=row.attn;
-  const cls = a>=8?"attn hot":a>=3?"attn warm":"attn cold";
-  return {cls, text:(a>0?"+":"")+String(a), v:a};
-}
 
 
 
@@ -844,9 +768,9 @@ function pushStatusUI() {
   if (!btn) return;
   const perm = (typeof Notification !== "undefined") ? Notification.permission : "denied";
   if (perm === "granted" && pushEnabled) {
-    btn.textContent = "Push ON · jumps only";
+    btn.textContent = "Push ON · HP only";
     btn.className = "on";
-    if (hint) hint.textContent = "Sound + push ON · 40→80→90→100 (BCM gates 90/100) · short −40→−80→−100";
+    if (hint) hint.textContent = "Sound + push ON · only long/short → HP (±70)";
   } else if (perm === "denied") {
     btn.textContent = "Push blocked — allow in browser";
     btn.className = "need";
@@ -854,7 +778,7 @@ function pushStatusUI() {
   } else {
     btn.textContent = "Enable score-jump push";
     btn.className = "need";
-    if (hint) hint.textContent = "Alerts muted · click to allow push on perfect-score climbs";
+    if (hint) hint.textContent = "Alerts muted · click to allow push on HP entries";
   }
 }
 
@@ -871,7 +795,7 @@ async function enablePush() {
   pushStatusUI();
   if (pushEnabled) {
     playJumpBeep(80);
-    setStatus("Push armed · jump sound armed · 40→80→90→100");
+    setStatus("Push armed · jump sound armed · HP-enter only (±70)");
     // one quiet test so OS permission is confirmed
     try {
       new Notification("HL Momentum · push armed", {
@@ -949,8 +873,8 @@ function fireJumpPush({ coin, from, to, rung, side }) {
 
 /**
  * Compare new score vs last check.
- * Fire only when climbing the 40→80→100 ladder (or descending −40→−80→−100),
- * or a large delta into that zone. First observation seeds history silently.
+ * Fire only when entering HP: long ≥HP_LONG or short ≤−HP_SHORT.
+ * First observation seeds history silently.
  */
 function checkScoreJump(row) {
   if (!row || row.section === "divider") return;
@@ -965,46 +889,34 @@ function checkScoreJump(row) {
   }
   const prev = prevEntry.score;
   const rungs = prevEntry.rungs || {};
-  let fired = false;
 
-  // Long climb toward 100
-  if (now > prev) {
-    for (const rung of JUMP_LADDER_LONG) {
-      if (prev < rung && now >= rung && !rungs["L"+rung]) {
-        rungs["L"+rung] = true;
-        fireJumpPush({ coin: row.display || bare(row.coin) || key, from: prev, to: now, rung, side: "long" });
-        fired = true;
-      }
-    }
-    // big jump into high zone even if rung already noted this session? only new rungs.
-    if (!fired && (now - prev) >= JUMP_MIN_DELTA && now >= 40 && prev < 40) {
-      fireJumpPush({ coin: row.display || bare(row.coin) || key, from: prev, to: now, rung: "Δinto40+", side: "long" });
-      fired = true;
-    }
+  // Long → HP
+  if (now > prev && prev < HP_LONG && now >= HP_LONG && !rungs["Lhp"]) {
+    rungs["Lhp"] = true;
+    fireJumpPush({
+      coin: row.display || bare(row.coin) || key,
+      from: prev,
+      to: now,
+      rung: "→HP long",
+      side: "long",
+    });
   }
 
-  // Short climb toward −100 (more negative)
-  if (now < prev) {
-    for (const rung of JUMP_LADDER_SHORT) {
-      if (prev > rung && now <= rung && !rungs["S"+rung]) {
-        rungs["S"+rung] = true;
-        fireJumpPush({ coin: row.display || bare(row.coin) || key, from: prev, to: now, rung, side: "short" });
-        fired = true;
-      }
-    }
-    if (!fired && (prev - now) >= JUMP_MIN_DELTA && now <= -40 && prev > -40) {
-      fireJumpPush({ coin: row.display || bare(row.coin) || key, from: prev, to: now, rung: "Δinto-40", side: "short" });
-      fired = true;
-    }
+  // Short → HP
+  if (now < prev && prev > -HP_SHORT && now <= -HP_SHORT && !rungs["Shp"]) {
+    rungs["Shp"] = true;
+    fireJumpPush({
+      coin: row.display || bare(row.coin) || key,
+      from: prev,
+      to: now,
+      rung: "→HP short",
+      side: "short",
+    });
   }
 
-  // Reset rung flags if score falls back below a rung (so re-climb can alert again)
-  for (const rung of JUMP_LADDER_LONG) {
-    if (now < rung - 5) delete rungs["L"+rung];
-  }
-  for (const rung of JUMP_LADDER_SHORT) {
-    if (now > rung + 5) delete rungs["S"+rung];
-  }
+  // Reset so re-entry after leaving HP can alert again
+  if (now < HP_LONG - 5) delete rungs["Lhp"];
+  if (now > -HP_SHORT + 5) delete rungs["Shp"];
 
   scoreHist[key] = { score: now, rungs, ts: Date.now() };
   saveScoreHist();
@@ -1023,7 +935,6 @@ async function rescorePass() {
   const signal = ctrl.signal;
   try {
     setStatus("Rescore pass (jump watch)…");
-    await fetchTrendingHeat(signal);
     applyAttentionFields();
     const nowMs = Date.now();
     await mapPool(rows, CONCURRENCY, async (row) => {
@@ -1052,9 +963,7 @@ function startJumpWatcher() {
 
 
 /* ===== Bayesian Conviction Multiplier (BCM) =====
- * Prior = HL momentum trigger. Evidence = DLO, CVD Proxy, Sweep
- * (evidence disjoint from prior ST/4H). Sureness uses fixed TPR/FPR
- * (illustrative — not a calibrated P(win)).
+ * Prior = HL momentum trigger. Evidence = DLO, CVD, Sweep.
  * Display scores in 90–100 ONLY when Sureness >= 90.
  */
 const BCM_PRIOR = 0.60;
@@ -1062,20 +971,15 @@ const BCM_THRESHOLD = 90.0;
 const BCM_METRICS = {
   dlo_alignment:   { tpr: 0.75, fpr: 0.30 }, // LR 2.5
   cvd_divergence:  { tpr: 0.60, fpr: 0.20 }, // LR 3.0
-  // Rebalanced: tpr 0.60 / fpr 0.25 → LR 2.4. With prior 0.60, yes-only
-  // two-of-three combos (DLO+CVD, DLO+Sweep, CVD+Sweep) all clear Sureness 90
-  // under sparse evidence (inactive layer LR=1).
-  liquidity_sweep: { tpr: 0.60, fpr: 0.25 }, // LR 2.4
+  liquidity_sweep: { tpr: 0.50, fpr: 0.25 }, // LR 2.0
 };
 const MOM_CAP_WITHOUT_BCM = 89; // cannot print 90–100 without BCM clearance
 
 function bcmLikelihoodRatio(metricName, conditionMet) {
   const stats = BCM_METRICS[metricName];
   if (!stats) return 1.0;
-  // Sparse evidence: inactive layer is uninformative (LR=1), not a negative update.
-  // "No sweep detected" ≠ "sweep test failed" for screening purposes.
-  if (!conditionMet) return 1.0;
-  return stats.tpr / stats.fpr;
+  if (conditionMet) return stats.tpr / stats.fpr;
+  return (1.0 - stats.tpr) / (1.0 - stats.fpr);
 }
 
 function bcmEvaluate(hlSignal, dloActive, cvdActive, sweepActive) {
@@ -1092,12 +996,11 @@ function bcmEvaluate(hlSignal, dloActive, cvdActive, sweepActive) {
 }
 
 /**
- * HL-native proxies for the three BCM evidence layers.
- * Evidence is deliberately DISJOINT from the prior in applyBcm
- * (prior already requires stYes===true and 4H>0). Do NOT re-test ST/4H here.
- *  DLO   — regime + 1D (>=0) only (no stYes, no 4H>0)
- *  CVD Proxy — oiDir==='up' + optional premium<0.0025 (no 4H>0)
- *  Sweep — unchanged: recent 15m stop-run + reclaim
+ * HL-native proxies for the three BCM evidence layers
+ * (true DLO/CVD feeds can replace these later without changing the updater).
+ *  DLO   — BTC regime supportive + asset 4H SuperTrend + 4H/1D aligned up
+ *  CVD   — OI rising with price (aggressive long flow / absorption proxy)
+ *  Sweep — recent 15m stop-run: wick below prior lows then close reclaim
  */
 function detectLiquiditySweep(candles15) {
   if (!candles15 || candles15.length < 8) return false;
@@ -1119,17 +1022,20 @@ function detectLiquiditySweep(candles15) {
 }
 
 function computeBcmEvidence(row) {
-  // Evidence must stay disjoint from prior ST/4H (see applyBcm hlSignal).
+  const h4 = row["4H"];
   const h1d = row["1D"];
   const regimeOk = btcRegime.kind === "alts" || btcRegime.kind === "mixed" || isBtc(row);
   const dlo =
+    !!row.stYes &&
+    Number.isFinite(h4) && h4 > 0 &&
     Number.isFinite(h1d) && h1d >= 0 &&
     regimeOk &&
     btcRegime.kind !== "trad";
 
-  // CVD proxy: OI↑ (optional: premium not extremely rich). No 4H>0 — that is prior.
+  // CVD proxy: aggressive longs — OI↑ with price↑ (and optional rich-not-extreme premium)
   const cvd =
     row.oiDir === "up" &&
+    Number.isFinite(h4) && h4 > 0 &&
     (!Number.isFinite(row.premium) || row.premium < 0.0025);
 
   const sweep = !!row.sweepFlag;
@@ -1161,7 +1067,7 @@ function applyBcm(row, rawMomScore) {
     row.why.push(
       `BCM ${row.sureness}`,
       ev.dlo ? "DLO✓" : "DLO✗",
-      ev.cvd ? "CVD Proxy✓" : "CVD Proxy✗",
+      ev.cvd ? "CVD✓" : "CVD✗",
       ev.sweep ? "Sweep✓" : "Sweep✗"
     );
   } else {
@@ -1176,7 +1082,7 @@ function applyBcm(row, rawMomScore) {
       row.why.push(
         `BCM ${row.sureness}`,
         ev.dlo ? "DLO✓" : "DLO✗",
-        ev.cvd ? "CVD Proxy✓" : "CVD Proxy✗",
+        ev.cvd ? "CVD✓" : "CVD✗",
         ev.sweep ? "Sweep✓" : "Sweep✗"
       );
     }
@@ -1190,75 +1096,73 @@ function scoreRow(row) {
     row.score=null; row.side=null; row.setup=null; row.hp=false; row.why=[];
     return;
   }
-  const C = SCORING_CONFIG;
   let score=0;
   const why=[];
-  const tfs=Object.entries(C.TF_WEIGHTS);
+  const tfs=[["15m",6],["1H",10],["4H",18],["1D",14],["1W",10]];
   let bull=0, bear=0;
   for (const [tf,w] of tfs) {
     const s=signPct(row[tf]);
     if (s===0) continue;
     if (s>0){ bull+=w; score+=w; } else { bear+=w; score-=w; }
   }
-  if (bull>=C.TF_BULL_TAG) why.push("TF↑");
-  if (bear>=C.TF_BEAR_TAG) why.push("TF↓");
+  if (bull>=40) why.push("TF↑");
+  if (bear>=40) why.push("TF↓");
 
-  if (row.stYes) { score+=C.ST_YES; why.push("ST↑"); }
-  else { score-=C.ST_NO; why.push("ST↓"); }
+  if (row.stYes) { score+=18; why.push("ST↑"); }
+  else { score-=18; why.push("ST↓"); }
 
   const h4=row["4H"];
   if (row.oiDir==="up") {
-    if (h4>0){ score+=C.OI_UP_PX_UP; why.push("OI↑+px↑"); }
-    else if (h4<0){ score-=C.OI_UP_PX_DOWN; why.push("OI↑ dump"); }
+    if (h4>0){ score+=14; why.push("OI↑+px↑"); }
+    else if (h4<0){ score-=8; why.push("OI↑ dump"); }
   } else if (row.oiDir==="down") {
-    if (h4<0){ score-=C.OI_DOWN_PX_DOWN; why.push("OI↓+px↓"); }
-    else if (h4>0){ score-=C.OI_DOWN_PX_UP; why.push("OI↓ rally"); }
+    if (h4<0){ score-=14; why.push("OI↓+px↓"); }
+    else if (h4>0){ score-=6; why.push("OI↓ rally"); }
   }
 
   if (!isBtc(row) && btcRow && Number.isFinite(btcRow["4H"]) && Number.isFinite(h4)) {
     const rs4 = h4 - btcRow["4H"];
     const rs1 = (Number.isFinite(row["1D"])&&Number.isFinite(btcRow["1D"])) ? row["1D"]-btcRow["1D"] : 0;
-    if (rs4>C.RS4_THRESH){ score+=C.RS4_PTS; why.push("RS+"); }
-    else if (rs4<-C.RS4_THRESH){ score-=C.RS4_PTS; why.push("RS−"); }
-    if (rs1>C.RS1_THRESH) score+=C.RS1_PTS; else if (rs1<-C.RS1_THRESH) score-=C.RS1_PTS;
+    if (rs4>1.5){ score+=10; why.push("RS+"); }
+    else if (rs4<-1.5){ score-=10; why.push("RS−"); }
+    if (rs1>3) score+=6; else if (rs1<-3) score-=6;
   }
 
   if (Number.isFinite(h4)) {
-    if (h4>C.STRETCH_H4){ score-=Math.min(C.STRETCH_CAP,(h4-C.STRETCH_H4)*C.STRETCH_MULT); why.push("stretched"); }
-    if (h4<C.OVERSOLD_H4){ score+=Math.min(C.OVERSOLD_CAP,(-h4+C.OVERSOLD_H4)*C.OVERSOLD_MULT); why.push("oversold"); }
+    if (h4>12){ score-=Math.min(16,(h4-12)*0.8); why.push("stretched"); }
+    if (h4<-12){ score+=Math.min(16,(-h4-12)*0.8); why.push("oversold"); }
   }
   const h1d=row["1D"];
   if (Number.isFinite(h1d)) {
-    if (h1d>C.STRETCH_1D) score-=Math.min(C.STRETCH_1D_CAP,(h1d-C.STRETCH_1D)*C.STRETCH_1D_MULT);
-    if (h1d<-C.STRETCH_1D) score+=Math.min(C.STRETCH_1D_CAP,(-h1d-C.STRETCH_1D)*C.STRETCH_1D_MULT);
+    if (h1d>25) score-=Math.min(12,(h1d-25)*0.35);
+    if (h1d<-25) score+=Math.min(12,(-h1d-25)*0.35);
   }
 
-  if (!row.stYes && Number.isFinite(row.stDist) && row.stDist>0 && row.stDist<C.NEAR_FLIP_DIST) {
-    score+=C.NEAR_FLIP_PTS; why.push("near flip");
+  if (!row.stYes && Number.isFinite(row.stDist) && row.stDist>0 && row.stDist<2) {
+    score+=4; why.push("near flip");
   }
-  if (row.stYes && Number.isFinite(h4) && h4>0 && h4<C.ST_SHALLOW_MAX) {
-    score+=C.ST_SHALLOW_PTS; why.push("ST shallow");
+  if (row.stYes && Number.isFinite(h4) && h4>0 && h4<4) {
+    score+=5; why.push("ST shallow");
   }
 
   if (Number.isFinite(row.dayNtl)) {
-    if (row.dayNtl>=C.DAY_NTL_HIGH) score += (score>=0?C.DAY_NTL_HIGH_PTS:-C.DAY_NTL_HIGH_PTS);
-    else if (row.dayNtl<C.DAY_NTL_LOW) score *= C.DAY_NTL_LOW_MULT;
+    if (row.dayNtl>=50e6) score += (score>=0?4:-4);
+    else if (row.dayNtl<5e6) score *= 0.85;
   }
 
   // Attention: separates peers with similar TA by mindshare / crowding
   const att = attentionScore(row);
   if (att.a) {
-    // Align attention with directional bias: heat + cheap funding helps longs;
-    // crowded funding into heat without ST is fade fuel (already in attn sign).
+    // Microstructure tilt (funding / premium / relative volume).
     score += att.a;
     why.push(...att.bits);
   }
 
   let blocked=false;
   if (!isBtc(row) && row.section!=="tradfi" && btcRegime.kind==="trad") {
-    if (score>0){ score=Math.min(score,C.BTC_GATE_CAP); blocked=true; why.push("BTC↓ gate"); }
+    if (score>0){ score=Math.min(score,25); blocked=true; why.push("BTC↓ gate"); }
   }
-  if (row.section==="tradfi" && btcRegime.kind==="trad" && score>0) score=Math.min(score,C.TRADFI_GATE_CAP);
+  if (row.section==="tradfi" && btcRegime.kind==="trad" && score>0) score=Math.min(score,20);
 
   score = Math.max(-100, Math.min(100, Math.round(score)));
   row.why = why;
@@ -1273,7 +1177,7 @@ function scoreRow(row) {
     // Actionable leveraged long — Sureness >= 90
     row.side="LONG"; row.setup="BCM ★"+Math.round(row.sureness); row.hp=true;
   } else if (score<=-HP_SHORT && !row.stYes && h4<0 && (row.oiDir==="down"||row.oiDir==="up")) {
-    row.side="SHORT"; row.setup="HP SHORT (mom)"; row.hp=true;
+    row.side="SHORT"; row.setup="HP SHORT"; row.hp=true;
   } else if (score>=SETUP_MIN && row.stYes && h4>0) {
     row.side="LONG"; row.setup="LONG"; row.hp=false;
   } else if (score<=-SETUP_MIN && !row.stYes && h4<0) {
@@ -1306,14 +1210,14 @@ function setupCell(row) {
     return {cls:"setup hp",text: row.setup.startsWith("BCM")?row.setup:("BCM ★"+Math.round(row.sureness||0)), v:5};
   }
   if (row.setup==="HP LONG") return {cls:"setup hp",text:"★ HP LONG",v:4};
-  if (row.setup==="HP SHORT" || row.setup==="HP SHORT (mom)") return {cls:"setup shorthp",text:"★ HP SHORT (mom)",v:3};
+  if (row.setup==="HP SHORT") return {cls:"setup shorthp",text:"★ HP SHORT",v:3};
   if (row.setup==="LONG") return {cls:"setup ok",text:"LONG",v:2};
   if (row.setup==="SHORT") return {cls:"setup shortok",text:"SHORT",v:1};
   return {cls:"setup no",text:row.setup,v:0};
 }
 function whyTitle(row) {
   const bcm = row.sureness != null
-    ? ` · Sureness ${row.sureness} (DLO ${row.bcmDlo?"Y":"N"} / CVD Proxy ${row.bcmCvd?"Y":"N"} / Sweep ${row.bcmSweep?"Y":"N"})`
+    ? ` · Sureness ${row.sureness} (DLO ${row.bcmDlo?"Y":"N"} / CVD ${row.bcmCvd?"Y":"N"} / Sweep ${row.bcmSweep?"Y":"N"})`
     : "";
   return `Score ${row.score??"?"}${bcm} · ${(row.why||[]).join(" · ")||"pending"}`;
 }
@@ -1364,7 +1268,7 @@ function refreshScoreUI(row) {
   scoreRow(row);
   if (!row.tr) return;
   const map=[[COL.side,sideCell],[COL.score,scoreCell],[COL.setup,setupCell],
-    [7,fundCell],[8,premCell],[9,rvolCell],[10,heatCell],[11,attnCell]];
+    [7,fundCell],[8,premCell],[9,rvolCell]];
   for (const [i,fn] of map) {
     const td=row.tr.children[i];
     if (!td) continue;
@@ -1423,7 +1327,7 @@ function appendRow(tb, r, idx) {
   const oid=oiDeltaCell(r), stc=stCell(r), sdc=stDistCell(r);
   const side=sideCell(r), sc=scoreCell(r), su=setupCell(r);
   const oi$=oiUsd(r);
-  const fc=fundCell(r), pc=premCell(r), rc=rvolCell(r), hc=heatCell(r), ac=attnCell(r);
+  const fc=fundCell(r), pc=premCell(r), rc=rvolCell(r);
   const cells=[
     ["n", String(idx), idx],
     ["coin", r.display||r.coin, r.display||r.coin],
@@ -1435,8 +1339,6 @@ function appendRow(tb, r, idx) {
     [fc.cls, fc.text, fc.v],
     [pc.cls, pc.text, pc.v],
     [rc.cls, rc.text, rc.v],
-    [hc.cls, hc.text, hc.v],
-    [ac.cls, ac.text, ac.v],
     [side.cls, side.text, side.v],
     [sc.cls, sc.text, sc.v],
     [su.cls, su.text, su.v],
@@ -1619,7 +1521,7 @@ async function loadSection(signal, {dex=null, section="crypto"}={}) {
       coin:name, display:bareName, section, mid, oi, dayNtl,
       funding: Number.isFinite(funding)?funding:null,
       premium: Number.isFinite(premium)?premium:null,
-      relVol:null, heatRank:null, attn:null,
+      relVol:null,
       oiDelta:null, oiDir:null, stYes:null, score:null, side:null, setup:null, hp:false, why:[]
     });
   }
@@ -1664,7 +1566,7 @@ async function reloadAll() {
   const signal=abortCtrl.signal;
   buildHeader();
   setStatus("Fetching universe…");
-  document.getElementById("meta").textContent="Fetching Hyperliquid… · momentum score · OI Δ ~15m · SuperTrend 4H";
+  document.getElementById("meta").textContent="Fetching via QuickNode HL… · HL bullish momentum · OI Δ ~15m · SuperTrend 4H";
   let crypto=[], tradfi=[];
   try { ({crypto,tradfi}=await loadUniverse(signal)); }
   catch(e){ if(e.name!=="AbortError") setStatus("Universe failed: "+e.message,true); return; }
@@ -1677,32 +1579,22 @@ async function reloadAll() {
   // Paint skeleton immediately — don't wait on CoinGecko
   applyAttentionFields();
   const asof=new Date().toISOString().replace("T"," ").slice(0,19)+" UTC";
-  document.getElementById("meta").textContent=`As of ${asof} · TF+ST+OI+RS+attention · HP longs top`;
+  document.getElementById("meta").textContent=`As of ${asof} · TF+ST+OI+RS · bullish focus · longs view`;
   renderSkeleton();
   rows.forEach(paintOi);
   setStatus(`Universe ${crypto.length}+${tradfi.length} — candles… · ${oiCacheStatus(nowMs)}`);
-
-  // CoinGecko in parallel (2.5s cap); apply heat when it lands without blocking candles
-  const heatP = fetchTrendingHeat(signal).then(() => {
-    applyAttentionFields();
-    for (const r of rows) {
-      if (r.section === "divider") continue;
-      if (r["4H"]!=null || r.stYes!=null) refreshScoreUI(r);
-    }
-  });
 
   await mapPool(rows, CONCURRENCY, async(row)=>{
     await surveyCoin(row, nowMs, signal);
     paintPcts(row);
   }, signal);
-  await Promise.race([heatP, new Promise(r => setTimeout(r, 0))]);
   if (!signal.aborted) {
     updateRegime();
     sortBy(COL.score,{initial:true,asc:false});
     const hpL=rows.filter(r=>r.hp&&r.side==="LONG").length;
     const hpS=rows.filter(r=>r.hp&&r.side==="SHORT").length;
     const rg=btcRegime.kind==="trad"?"CONTRACTING":btcRegime.kind==="alts"?"EXPANDING":btcRegime.kind==="mixed"?"MIXED":"SCANNING";
-    setStatus(`Done · ${crypto.length}+${tradfi.length} · ${rg} · ★${hpL} HP LONG / ★${hpS} HP SHORT (mom) · ${oiCacheStatus(nowMs)}`);
+    setStatus(`Done · ${crypto.length}+${tradfi.length} · ${rg} · ★${hpL} HP LONG / ★${hpS} HP SHORT · ${oiCacheStatus(nowMs)}`);
     checkAllScoreJumps();
     startOiPoller();
     startJumpWatcher();
