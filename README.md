@@ -2,7 +2,7 @@
 
 **Hyperliquid momentum screener with multi-timeframe scoring and Bayesian confirmation.**
 
-Bayesian.xyz scans Hyperliquid perpetual markets and combines multi-timeframe momentum, market structure, derivatives positioning, relative strength, market attention, and liquidity behavior into a single directional score.
+Bayesian.xyz screens Hyperliquid perpetual markets for bullish momentum and combines multi-timeframe momentum, market structure, derivatives positioning, relative strength, and liquidity behavior into a single directional score.
 
 A Bayesian Conviction Multiplier (BCM) provides an additional confirmation layer for the highest-confidence setups.
 
@@ -32,7 +32,6 @@ The score incorporates:
 - Funding
 - Hyperliquid premium
 - Relative volume
-- Market attention
 - Liquidity-sweep behavior
 - BTC market regime
 
@@ -221,24 +220,6 @@ This helps identify assets demonstrating independent strength rather than simply
 
 ---
 
-# Market Attention
-
-The system incorporates market attention as an additional contextual factor.
-
-Attention is intended to separate assets that have similar technical conditions but significantly different levels of market interest.
-
-The model considers:
-
-- Trending status
-- Funding
-- Premium
-- Relative volume
-
-Attention is not treated as an independent buy signal.
-
-Instead, it modifies the underlying momentum score.
-
----
 
 # BTC Regime
 
@@ -551,7 +532,6 @@ The screener uses Hyperliquid data for:
 - Funding
 - Premium
 
-CoinGecko's public trending endpoint is used as an additional market-attention input.
 
 No Hyperliquid API key is required for the public market-data functionality.
 
